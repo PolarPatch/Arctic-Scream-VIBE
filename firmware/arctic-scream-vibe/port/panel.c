@@ -174,6 +174,8 @@ static void vp_text_value(int p, char *b)       /* a parameter's value as text *
     if (P->unit && *P->unit) { vp_cat(b, " "); vp_cat(b, P->unit); }
 }
 
+#include "home.c"                               /* HOME at the display's own size */
+
 static void vp_fm1_full(uint16_t *vfb)          /* the FM-1's screen as it is, as tall as the display (240 -> 320, each
                                                  * pixel 1 or 2 wide and high: the pixel look kept) in the middle; on
                                                  * HOME its night sky goes on into the sides */
@@ -205,7 +207,8 @@ static void vp_draw(uint16_t *vfb)
     if (vp_help) { vg_controls("ARCTIC SCREAM", VP_HELP, sizeof VP_HELP / sizeof VP_HELP[0] / 2); return; }
     vg_clear(0x05080d);
     if (!vb_lit) return;                        /* (SCREEN OFF: dark) */
-    if (vp_page == VP_FM) vp_fm1_full(vfb);    /* the FM-1's pages: its screen, full height */
+    if (vp_page == VP_FM && page == PG_HOME) vp_home_full(vfb);   /* HOME: drawn again, the whole display */
+    else if (vp_page == VP_FM) vp_fm1_full(vfb);   /* the FM-1's other pages: its screen, full height */
     else {                                      /* sound in's pages: the FM-1's screen left, the page right */
         vg_text("ARCTIC SCREAM", 10, 8, VG_BOLD, 0xE6EAF2, VG_LEFT);
         vg_text(VP_PAGE_N[vp_page], 468, 8, VG_BOLD, 0xff1a8c, VG_RIGHT);
@@ -251,11 +254,11 @@ static void vp_draw(uint16_t *vfb)
     if (vp_shift || fm1_ms - vp_f_t < 2000u) {  /* the soft keys' captions: only while SHIFT is held, or a moment after
                                                  * an F key (over the bottom line) */
         static const char *const F[6] = {"SEL", "GLOBAL", "SAVE", "IN", "VOICE", "ROUTE"};
-        vg_rect(0, 296, 480, 24, 0x05080d);
-        vg_rect(0, 296, 480, 1, 0x141b26);
+        vg_begin(vfb);
+        vg_rect(0, 0, 480, 24, 0x161f2a);       /* (over the header, a moment: it covers nothing that plays) */
         for (i = 0; i < 6; i++) {
             int hi = i >= 3 && (vp_page == VP_IN + i - 3 || (i == 3 && vp_page == VP_SAMPLE));
-            vg_text(i == 3 && vp_page == VP_SAMPLE ? "SAMPLE" : F[i], 40 + i * 80, 305, VG_SMALL, hi ? 0xff1a8c : 0x4a5466,
+            vg_text(i == 3 && vp_page == VP_SAMPLE ? "SAMPLE" : F[i], 40 + i * 80, 4, VG_SMALL, hi ? 0xff1a8c : 0xC0C6D0,
                     VG_CENTER);
         }
     }
