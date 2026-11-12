@@ -82,6 +82,8 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 
 /* ---- settings: up to 256 bytes, kept in RAM (main.c: in the host's store later); as platform.c, a
  * load only succeeds with the length that was saved */
+static uint32_t vb_dirty;                       /* what changed since the host last kept it (persist.c): VD_ bits */
+enum { VD_SAVE = 1u, VD_SET = 2u, VD_SLOT0 = 4u };   /* (VD_SLOT0 << k: sample slot k) */
 static uint8_t vb_set[256];
 static int32_t vb_set_len = -1;
 static uint32_t vb_set_writes;
@@ -97,6 +99,7 @@ static int settings_save(const void *p, uint32_t n)
     memcpy(vb_set, p, n);
     vb_set_len = (int32_t)n;
     vb_set_writes++;
+    vb_dirty |= VD_SET;
     return 0;
 }
 
@@ -136,6 +139,7 @@ static int sample_flash_erase(uint32_t off)
     uint32_t i;
     if ((off & 0xFFFu) || off >= SAMPLE_AREA_LEN) return -8;
     for (i = 0; i < 4096u; i++) fake_flash[off + i] = 0xFF;
+    vb_dirty |= VD_SLOT0 << (off / SMP_SLOT_SIZE);
     return 0;
 }
 static int sample_flash_write(uint32_t off, const void *p, uint32_t n)   /* NOR: a write only clears bits */
@@ -144,6 +148,7 @@ static int sample_flash_write(uint32_t off, const void *p, uint32_t n)   /* NOR:
     uint32_t i;
     if (off >= SAMPLE_AREA_LEN || n > SAMPLE_AREA_LEN - off) return -8;
     for (i = 0; i < n; i++) fake_flash[off + i] &= s[i];
+    vb_dirty |= VD_SLOT0 << (off / SMP_SLOT_SIZE);
     return 0;
 }
 /* Arctic Scream: the save sectors (store.c), here RAM, erased at the start: nothing saved */
@@ -160,6 +165,7 @@ static int save_flash_erase(uint32_t i)
     if (i >= SAVE_NSECT) return -8;
     (void)save_flash(0);
     memset(fake_save[i], 0xFF, 4096u);
+    vb_dirty |= VD_SAVE;
     return 0;
 }
 static int save_flash_write(uint32_t i, uint32_t off, const void *p, uint32_t n)   /* NOR: a write only clears bits */
@@ -169,6 +175,7 @@ static int save_flash_write(uint32_t i, uint32_t off, const void *p, uint32_t n)
     if (i >= SAVE_NSECT || off >= 4096u || n > 4096u - off) return -8;
     (void)save_flash(0);
     for (k = 0; k < n; k++) fake_save[i][off + k] &= s[k];
+    vb_dirty |= VD_SAVE;
     return 0;
 }
 /* SysEx: the editor page's frames in (as USB would bring them: 7D .. without F0 / F7), the replies out (F0 .. F7) */

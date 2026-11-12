@@ -1,4 +1,6 @@
 sdk/
 build/
 tests/out/
+tests/store/
+tests/media/
 .DS_Store

@@ -39,6 +39,10 @@ static struct {                                 /* the settings (main.c, from th
     float growl;                                /* GROWL: the soft clip's drive, 0 .. 1 */
 } lv = {0, 1.0f, 1.0f, 0.5f, 0.0f, 60.0f, 0.0f};
 
+static volatile int sl_rec;                     /* (slots.c) recording: the input, each engine frame, to sl_rec_put */
+static int sl_rec_dry;
+static void sl_rec_put(float x);
+
 static float lv_dl[LV_DL];                      /* the pitch line */
 static uint32_t lv_dw;
 static float lv_ph, lv_rph, lv_hp_x, lv_hp_y, lv_env;
@@ -97,9 +101,10 @@ static const int16_t *live_take(uint32_t n)     /* the engine (app_audio): this 
     if (li_w - li_r > LI_RING - 4u || (int32_t)(li_w - li_r) < (int32_t)(LI_LAG / 4u))
         li_r = li_w - LI_LAG, li_rf = 0.0f;     /* (out of step, a stall or a burst: back to LI_LAG behind) */
     for (i = 0; i < n; i++) {
-        float a = li_ring[li_r % LI_RING], b = li_ring[(li_r + 1u) % LI_RING], x = (a + (b - a) * li_rf) * lv.gain;
+        float a = li_ring[li_r % LI_RING], b = li_ring[(li_r + 1u) % LI_RING], x0 = (a + (b - a) * li_rf) * lv.gain, x;
         uint32_t w;
-        x = lv_voice(x);
+        x = lv_voice(x0);
+        if (sl_rec) sl_rec_put(sl_rec_dry ? x0 : x);   /* (SAMPLE's REC: as heard, or dry) */
         lv_env += ((x < 0.0f ? -x : x) - lv_env) * 0.0005f;   /* (the level, for the display) */
         x = x > 0.999f ? 0.999f : x < -0.999f ? -0.999f : x;
         li_buf[i] = (int16_t)(x * 32767.0f);
