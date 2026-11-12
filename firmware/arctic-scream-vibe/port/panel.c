@@ -174,59 +174,26 @@ static void vp_text_value(int p, char *b)       /* a parameter's value as text *
     if (P->unit && *P->unit) { vp_cat(b, " "); vp_cat(b, P->unit); }
 }
 
-static void vp_knobs(int y)                     /* the page's four knobs in one quiet line (encoders 1..4): the name dim,
-                                                 * the value a little brighter, a hairline under it */
+static void vp_fm1_full(uint16_t *vfb)          /* the FM-1's screen as it is, as tall as the display (240 -> 320, each
+                                                 * pixel 1 or 2 wide and high: the pixel look kept) in the middle; on
+                                                 * HOME its night sky goes on into the sides */
 {
-    char b[16];
-    int k;
-    for (k = 0; k < 4; k++) {
-        volatile int32_t *q = knob_param(page, (uint32_t)k);
-        int x = 10 + k * 117, mx = knob_max(page, (uint32_t)k), mn = knob_min(page, (uint32_t)k), w;
-        const char *n = knob_name(page, (uint32_t)k);
-        if (!n || !*n) continue;
-        w = vg_text(n, x, y, VG_SMALL, 0x4a5466, VG_LEFT);
-        knob_text(page, (uint32_t)k, b);
-        vg_text(b, x + w + 6, y, VG_SMALL, 0x8A93A6, VG_LEFT);
-        if (q && mx > mn) vg_rect(x, y + 17, (int)(100 * (vd_clamp((float)(*q - mn) / (float)(mx - mn), 0.0f, 1.0f))), 1,
-                                  vg_mix(VP_TRK[sel & 3u], 0x05080d, 0.4f));
-    }
-}
-
-static void vp_home(void)                       /* HOME, the whole display: the four tracks, each its wave as it sounds
-                                                 * (ui.c's wv_d, the FM-1's HOME picture's), over the stars */
-{
-    static const uint16_t SX[24] = {31, 77, 140, 188, 233, 291, 347, 402, 455, 18, 109, 167, 214, 262, 318, 371, 429, 64,
-                                    122, 197, 276, 333, 389, 446};
-    char b[24];
-    uint32_t t, i;
-    for (i = 0; i < 24u; i++) {                 /* (the sky: a few stars, brighter as it gets louder) */
-        uint32_t c = (fm1_ms / 700u + i * 7u) % 9u == 0u ? 0x8A93A6 : 0x2a3344;
-        vg_rect(SX[i], 32 + (int)((i * 53u) % 256u), 2, 2, c);
-    }
-    for (t = 0; t < NT; t++) {
-        int c = 66 + (int)t * 66, on = trk[t].level > 0 && !(trk_quiet >> t & 1u);
-        uint32_t col = on ? VP_TRK[t] : 0x404850, dim = vg_mix(col, 0x05080d, 0.75f);
-        char nm[24];
-        nm[0] = 0;
-        if (trk_sname(t, nm) == nm) strcpy(nm, ENGINES[trk[t].eng]->name);
-        if (t == sel) vg_rect(0, c - 28, 3, 58, col);
-        b[0] = 'T', b[1] = (char)('1' + t), b[2] = 0;
-        vg_text(b, 10, c - 26, VG_BOLD, t == sel ? 0xE6EAF2 : 0x8A93A6, VG_LEFT);
-        vg_text(nm, 32, c - 26, VG_SMALL, t == sel ? col : 0x5B6577, VG_LEFT);
-        {                                       /* the wave: across the whole width, a glow under a line */
-            float wx[SC_N], wy[SC_N];
-            for (i = 0; i < SC_N; i++) {
-                int32_t v = wv_d[t][i];
-                wx[i] = 10.0f + (float)i * (460.0f / (float)(SC_N - 1u));
-                wy[i] = (float)c + 4.0f - 27.0f * (float)v / (float)((v < 0 ? -v : v) + 500);
-            }
-            for (i = 1; i < SC_N; i++) vg_line(wx[i - 1], wy[i - 1], wx[i], wy[i], 6.0f, dim);
-            for (i = 1; i < SC_N; i++) vg_line(wx[i - 1], wy[i - 1], wx[i], wy[i], t == sel ? 2.0f : 1.5f, col);
+    static const uint16_t SX[28] = {7, 23, 41, 58, 70, 12, 33, 49, 66, 4, 27, 54, 75, 18, 44, 62, 9, 36, 71, 29, 52, 15,
+                                    67, 39, 3, 57, 24, 46};
+    uint32_t x, y, i;
+    uint16_t k = UI_K;
+    for (i = 0; i < VIBE_SCREEN_W * VIBE_SCREEN_H; i++) vfb[i] = k;
+    if (page == PG_HOME)                        /* (the sides' stars: the FM-1's greys, now and then one brightens) */
+        for (i = 0; i < 56u; i++) {
+            uint32_t sx = (i < 28u ? 0u : 400u) + SX[i % 28u], sy = 8u + (i * 97u) % 300u, j;
+            uint16_t c = (fm1_ms / 400u + i * 13u) % 23u == 0u ? UI_L : i % 3u ? UI_D : UI_M;
+            for (j = 0; j < 9u; j++) vfb[(sy + j / 3u) * VIBE_SCREEN_W + sx + j % 3u] = c;
         }
+    for (y = 0; y < VIBE_SCREEN_H; y++) {
+        uint16_t *row = vfb + y * VIBE_SCREEN_W + 80u;
+        const uint16_t *src = fb + (y * 3u / 4u) * 240u;
+        for (x = 0; x < 320u; x++) row[x] = src[x * 3u / 4u];
     }
-    vg_text(playing ? "PLAY" : "", 468, 8, VG_BOLD, 0x3fb950, VG_RIGHT);
-    vg_itoa((int)seq_bpm, b);
-    vg_text(b, playing ? 420 : 468, 8, VG_BOLD, 0x8A93A6, VG_RIGHT);
 }
 
 static void vp_draw(uint16_t *vfb)
@@ -238,18 +205,9 @@ static void vp_draw(uint16_t *vfb)
     if (vp_help) { vg_controls("ARCTIC SCREAM", VP_HELP, sizeof VP_HELP / sizeof VP_HELP[0] / 2); return; }
     vg_clear(0x05080d);
     if (!vb_lit) return;                        /* (SCREEN OFF: dark) */
-    vg_text("ARCTIC SCREAM", 10, 8, VG_BOLD, 0xE6EAF2, VG_LEFT);   /* the header */
-    if (vp_page == VP_FM && page == PG_HOME) {  /* HOME: the tracks, full width; the knobs small under them */
-        vp_home();
-        vp_knobs(298);
-    } else if (vp_page == VP_FM) {              /* the FM-1's other pages: its screen, as it is, in the middle */
-        vg_text(PAGES[page].name, 468, 8, VG_BOLD, VP_TRK[sel & 3u], VG_RIGHT);
-        for (y = 0; y < 240u; y++) {
-            uint16_t *row = vfb + (36u + y) * VIBE_SCREEN_W + 120u;
-            const uint16_t *src = fb + y * 240u;
-            for (x = 0; x < 240u; x++) row[x] = src[x];
-        }
-    } else {                                    /* sound in's pages: the FM-1's screen left, the page right */
+    if (vp_page == VP_FM) vp_fm1_full(vfb);    /* the FM-1's pages: its screen, full height */
+    else {                                      /* sound in's pages: the FM-1's screen left, the page right */
+        vg_text("ARCTIC SCREAM", 10, 8, VG_BOLD, 0xE6EAF2, VG_LEFT);
         vg_text(VP_PAGE_N[vp_page], 468, 8, VG_BOLD, 0xff1a8c, VG_RIGHT);
         for (y = 0; y < 240u; y++) {
             uint16_t *row = vfb + (36u + y) * VIBE_SCREEN_W;
