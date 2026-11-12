@@ -21,7 +21,7 @@ static int vp_page = VP_FM, vp_help;
 static uint32_t vp_btn;                         /* the FM-1 buttons the VIBE holds (BTN_ ids) */
 static uint32_t vp_fkeys;                       /* the FM-1 keys the pads hold (bit = key) */
 static int8_t vp_padkey[16];                    /* a held pad's FM-1 key (-1: a direct function, none) */
-static uint32_t vp_shift;
+static uint32_t vp_shift, vp_f_t = 0x80000000u;   /* SHIFT held; fm1_ms of the last F key */
 
 static const int8_t VP_K[6] = {BTN_EDIT, BTN_ENV, BTN_LFO, BTN_ARP, BTN_FX, BTN_SEQ};
 static const int8_t VP_F[3] = {BTN_SEL, BTN_GLO, BTN_SAVE};
@@ -86,6 +86,7 @@ static void vp_event(const vibe_event *e)
         int b = e->id;
         if (b == VB_HOME) { if (e->down) vp_help = !vp_help; return; }
         if (vp_help && e->down && (b == VB_RETURN)) { vp_help = 0; return; }
+        if (b >= VB_F1 && b <= VB_F6 && e->down) vp_f_t = fm1_ms;
         if (b >= VB_K1 && b <= VB_K6) vp_set_btn(VP_K[b - VB_K1], e->down);
         else if (b >= VB_F1 && b <= VB_F3) vp_set_btn(VP_F[b - VB_F1], e->down);
         else if (b == VB_F4) { if (e->down) vp_page = vp_page == VP_IN ? VP_SAMPLE : vp_page == VP_SAMPLE ? VP_FM : VP_IN; }
@@ -173,20 +174,21 @@ static void vp_text_value(int p, char *b)       /* a parameter's value as text *
     if (P->unit && *P->unit) { vp_cat(b, " "); vp_cat(b, P->unit); }
 }
 
-static void vp_knobs(int y)                     /* the page's four knobs, small, in one row (encoders 1..4) */
+static void vp_knobs(int y)                     /* the page's four knobs in one quiet line (encoders 1..4): the name dim,
+                                                 * the value a little brighter, a hairline under it */
 {
     char b[16];
     int k;
     for (k = 0; k < 4; k++) {
         volatile int32_t *q = knob_param(page, (uint32_t)k);
-        int x = 6 + k * 118, mx = knob_max(page, (uint32_t)k), mn = knob_min(page, (uint32_t)k);
+        int x = 10 + k * 117, mx = knob_max(page, (uint32_t)k), mn = knob_min(page, (uint32_t)k), w;
         const char *n = knob_name(page, (uint32_t)k);
         if (!n || !*n) continue;
-        vg_text(n, x, y, VG_SMALL, 0x8A93A6, VG_LEFT);
+        w = vg_text(n, x, y, VG_SMALL, 0x4a5466, VG_LEFT);
         knob_text(page, (uint32_t)k, b);
-        vg_text(b, x + 112, y, VG_SMALL, 0xE6EAF2, VG_RIGHT);
-        vg_rect(x, y + 17, 112, 2, 0x1a2230);
-        if (q && mx > mn) vg_rect(x, y + 17, (int)(112 * (vd_clamp((float)(*q - mn) / (float)(mx - mn), 0.0f, 1.0f))), 2, VP_TRK[sel & 3u]);
+        vg_text(b, x + w + 6, y, VG_SMALL, 0x8A93A6, VG_LEFT);
+        if (q && mx > mn) vg_rect(x, y + 17, (int)(100 * (vd_clamp((float)(*q - mn) / (float)(mx - mn), 0.0f, 1.0f))), 1,
+                                  vg_mix(VP_TRK[sel & 3u], 0x05080d, 0.4f));
     }
 }
 
@@ -199,15 +201,15 @@ static void vp_home(void)                       /* HOME, the whole display: the 
     uint32_t t, i;
     for (i = 0; i < 24u; i++) {                 /* (the sky: a few stars, brighter as it gets louder) */
         uint32_t c = (fm1_ms / 700u + i * 7u) % 9u == 0u ? 0x8A93A6 : 0x2a3344;
-        vg_rect(SX[i], 32 + (int)((i * 53u) % 236u), 2, 2, c);
+        vg_rect(SX[i], 32 + (int)((i * 53u) % 256u), 2, 2, c);
     }
     for (t = 0; t < NT; t++) {
-        int c = 62 + (int)t * 60, on = trk[t].level > 0 && !(trk_quiet >> t & 1u);
+        int c = 66 + (int)t * 66, on = trk[t].level > 0 && !(trk_quiet >> t & 1u);
         uint32_t col = on ? VP_TRK[t] : 0x404850, dim = vg_mix(col, 0x05080d, 0.75f);
         char nm[24];
         nm[0] = 0;
         if (trk_sname(t, nm) == nm) strcpy(nm, ENGINES[trk[t].eng]->name);
-        if (t == sel) vg_rect(0, c - 26, 3, 52, col);
+        if (t == sel) vg_rect(0, c - 28, 3, 58, col);
         b[0] = 'T', b[1] = (char)('1' + t), b[2] = 0;
         vg_text(b, 10, c - 26, VG_BOLD, t == sel ? 0xE6EAF2 : 0x8A93A6, VG_LEFT);
         vg_text(nm, 32, c - 26, VG_SMALL, t == sel ? col : 0x5B6577, VG_LEFT);
@@ -216,7 +218,7 @@ static void vp_home(void)                       /* HOME, the whole display: the 
             for (i = 0; i < SC_N; i++) {
                 int32_t v = wv_d[t][i];
                 wx[i] = 10.0f + (float)i * (460.0f / (float)(SC_N - 1u));
-                wy[i] = (float)c + 4.0f - 24.0f * (float)v / (float)((v < 0 ? -v : v) + 500);
+                wy[i] = (float)c + 4.0f - 27.0f * (float)v / (float)((v < 0 ? -v : v) + 500);
             }
             for (i = 1; i < SC_N; i++) vg_line(wx[i - 1], wy[i - 1], wx[i], wy[i], 6.0f, dim);
             for (i = 1; i < SC_N; i++) vg_line(wx[i - 1], wy[i - 1], wx[i], wy[i], t == sel ? 2.0f : 1.5f, col);
@@ -239,7 +241,7 @@ static void vp_draw(uint16_t *vfb)
     vg_text("ARCTIC SCREAM", 10, 8, VG_BOLD, 0xE6EAF2, VG_LEFT);   /* the header */
     if (vp_page == VP_FM && page == PG_HOME) {  /* HOME: the tracks, full width; the knobs small under them */
         vp_home();
-        vp_knobs(272);
+        vp_knobs(298);
     } else if (vp_page == VP_FM) {              /* the FM-1's other pages: its screen, as it is, in the middle */
         vg_text(PAGES[page].name, 468, 8, VG_BOLD, VP_TRK[sel & 3u], VG_RIGHT);
         for (y = 0; y < 240u; y++) {
@@ -288,9 +290,11 @@ static void vp_draw(uint16_t *vfb)
             vg_rect(252, 262, (int)(218.0f * vd_clamp(lv_env * 4.0f, 0.0f, 1.0f)), 6, li_live && lv.on ? 0x3fb950 : 0x404850);
         }
     }
-    {                                           /* the soft keys' captions: one thin line at the bottom */
+    if (vp_shift || fm1_ms - vp_f_t < 2000u) {  /* the soft keys' captions: only while SHIFT is held, or a moment after
+                                                 * an F key (over the bottom line) */
         static const char *const F[6] = {"SEL", "GLOBAL", "SAVE", "IN", "VOICE", "ROUTE"};
-        vg_rect(0, 303, 480, 1, 0x141b26);
+        vg_rect(0, 296, 480, 24, 0x05080d);
+        vg_rect(0, 296, 480, 1, 0x141b26);
         for (i = 0; i < 6; i++) {
             int hi = i >= 3 && (vp_page == VP_IN + i - 3 || (i == 3 && vp_page == VP_SAMPLE));
             vg_text(i == 3 && vp_page == VP_SAMPLE ? "SAMPLE" : F[i], 40 + i * 80, 305, VG_SMALL, hi ? 0xff1a8c : 0x4a5466,
