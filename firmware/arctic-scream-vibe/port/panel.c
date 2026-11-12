@@ -8,7 +8,9 @@
  *   F4 F5 F6    IN, VOICE, ROUTE: sound in, on the right half (encoders 1..4 its four values); again: back
  *   RETURN      the FM-1's HOME (and the right half back to the pads)
  *   HOME        what every control does (vg_controls); the library is the host's (held, SHIFT + HOME)
- *   PLAY REC    PLAY, REC; STOP: PLAY while it plays
+ *   PLAY REC    PLAY, REC (SAMPLE: REC records the input)
+ *   STOP        the sequencer, if it plays; else the track's sound let go (its latched notes, GENERATE); SHIFT: all
+ *   < >  MENU   the track before / after; MENU: what every control does (as HOME)
  *   OCT - / +   OCT- / OCT+ (the keys follow: vibe_keys_octave)
  *   enc 1..4    KNOB 1..4 (on IN, VOICE, ROUTE: those four values); A the track (ALGORITHM), B SELECT (the tempo, the
  *               steps), DATA PRESETS (the big wheel: the sounds)
@@ -22,6 +24,7 @@ static int vp_page = VP_FM, vp_help;
 static uint32_t vp_btn;                         /* the FM-1 buttons the VIBE holds (BTN_ ids) */
 static uint32_t vp_fkeys;                       /* the FM-1 keys the pads hold (bit = key) */
 static int8_t vp_padkey[16];                    /* a held pad's FM-1 key (-1: a direct function, none) */
+static uint32_t vp_stop_seq;                   /* (STOP pressed to stop the sequencer: its let go too) */
 static uint32_t vp_shift, vp_f_t = 0x80000000u;   /* SHIFT held; fm1_ms of the last F key */
 
 static const int8_t VP_K[6] = {BTN_EDIT, BTN_ENV, BTN_LFO, BTN_ARP, BTN_FX, BTN_SEQ};
@@ -106,7 +109,18 @@ static void vp_event(const vibe_event *e)
         }
         else if (b == VB_RETURN) { vp_set_btn(BTN_HOME, e->down); if (e->down) vp_page = VP_FM; }
         else if (b == VB_PLAY) vp_set_btn(BTN_PLAY, e->down);
-        else if (b == VB_STOP) { if (playing || !e->down) vp_set_btn(BTN_PLAY, e->down); }
+        else if (b == VB_STOP) {                /* STOP: the sequencer, if it plays; else the track's sound (its
+                                                 * latched notes, its GENERATE) let go; SHIFT + STOP: all four */
+            if (e->down && playing) vp_stop_seq = 1, vp_set_btn(BTN_PLAY, 1);
+            else if (!e->down && vp_stop_seq) vp_stop_seq = 0, vp_set_btn(BTN_PLAY, 0);
+            else if (e->down) {
+                uint32_t t;
+                for (t = 0; t < NT; t++)
+                    if (vp_shift || t == sel) gen_on &= ~(1u << t), nq_put(NQ_RELEASE, t, 0);
+            }
+        }
+        else if (b == VB_LEFT || b == VB_RIGHT) { if (e->down) sel = (sel + (b == VB_LEFT ? NT - 1u : 1u)) % NT; }
+        else if (b == VB_MENU) { if (e->down) vp_help = !vp_help; }
         else if (b == VB_REC) vp_set_btn(BTN_REC, e->down);
         else if (b == VB_OCT_DOWN) vp_set_btn(BTN_OCT_DOWN, e->down);
         else if (b == VB_OCT_UP) vp_set_btn(BTN_OCT_UP, e->down);
@@ -161,6 +175,8 @@ static const char *const VP_HELP[] = {
     "PADS 1..4", "the track",
     "PADS 5..8", "slots A..D",
     "PADS 9..16", "DICE: HUSH .. MACHINE",
+    "STOP", "the sequencer; or the track's sound off (SHIFT: all)",
+    "< >", "the track before / after",
     "RETURN", "the start page",
 };
 
