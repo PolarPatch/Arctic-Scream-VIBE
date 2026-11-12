@@ -10,12 +10,12 @@
  *   HOME        what every control does (vg_controls); the library is the host's (held, SHIFT + HOME)
  *   PLAY REC    PLAY, REC (SAMPLE: REC records the input)
  *   STOP        the sequencer, if it plays; else the track's sound let go (its latched notes, GENERATE); SHIFT: all
- *   < >  MENU   the track before / after; MENU: what every control does (as HOME)
+ *   < >  MENU   UNDO / REDO; MENU: what every control does (as HOME)
  *   OCT - / +   OCT- / OCT+ (the keys follow: vibe_keys_octave)
- *   enc 1..4    KNOB 1..4 (on IN, VOICE, ROUTE: those four values); A the track (ALGORITHM), B SELECT (the tempo, the
+ *   enc 1..4    KNOB 1..4 (on IN, VOICE, ROUTE: those four values); A the track into SPACE (SHIFT: DELAY), B SELECT (the tempo, the
  *               steps), DATA PRESETS (the big wheel: the sounds)
  *   keys        notes on the selected track (MIDI, with the DAW's)
- *   pads        nothing held: 1..4 the track, 5..8 slots A..D (recalled), 9..16 DICE's eight moods on the track;
+ *   pads        nothing held: 1..4 the track (the selected one again: its LATCH), 5..8 slots A..D (recalled), 9..16 DICE's eight moods on the track;
  *               a button held: the FM-1's function keys under it, 1..8 its eight white keys from F2, 9..16 the next
  *               eight (DICE, ACCIDENT) or, with FX, GENERATE's black keys */
 
@@ -59,7 +59,11 @@ static void vp_pad(int p, int down)             /* pad p (0..15) pressed / let g
         return;
     }
     vp_padkey[p] = -1;
-    if (p < 4) sel = (uint32_t)p;               /* 1..4: the track */
+    if (p < 4 && (uint32_t)p == sel) {          /* 1..4: the track; the selected one's pad again: its LATCH on / off */
+        set_latch(!trk[sel].latch);
+        hd_say(trk[sel].latch ? "LATCH ON" : "LATCH OFF");
+    } else if (p < 4)
+        sel = (uint32_t)p;
     else if (p < 8) slot_do_recall((uint32_t)p - 4u);   /* 5..8: slots A..D */
     else dice((uint32_t)p - 8u, (uint32_t)(KEY0 + 12 * set.oct));   /* 9..16: DICE */
 }
@@ -119,7 +123,8 @@ static void vp_event(const vibe_event *e)
                     if (vp_shift || t == sel) gen_on &= ~(1u << t), nq_put(NQ_RELEASE, t, 0);
             }
         }
-        else if (b == VB_LEFT || b == VB_RIGHT) { if (e->down) sel = (sel + (b == VB_LEFT ? NT - 1u : 1u)) % NT; }
+        else if (b == VB_LEFT) { if (e->down) hd_say(undo() ? "NOTHING TO UNDO" : "UNDO"); }
+        else if (b == VB_RIGHT) { if (e->down) hd_say(redo() ? "NOTHING TO REDO" : "REDO"); }
         else if (b == VB_MENU) { if (e->down) vp_help = !vp_help; }
         else if (b == VB_REC) vp_set_btn(BTN_REC, e->down);
         else if (b == VB_OCT_DOWN) vp_set_btn(BTN_OCT_DOWN, e->down);
@@ -130,6 +135,20 @@ static void vp_event(const vibe_event *e)
     } else if (e->type == VIBE_EV_ENCODER && e->id < VE_COUNT) {
         int32_t d;
         if (vp_page != VP_FM && e->id <= VE_4) { vp_value(e->id, e->value); return; }
+        if (e->id == VE_A) {                    /* A: the track into SPACE (SHIFT: into DELAY), a wash at hand */
+            static float fa;
+            volatile int32_t *q = vp_shift ? &trk[sel].dly : &trk[sel].rev;
+            int32_t d2;
+            char *m;
+            fa += e->value * 2.0f;
+            d2 = (int32_t)fa, fa -= (float)d2;
+            if (!d2) return;
+            *q = clamp(*q + d2, 0, 127);
+            m = put_s(put_u(put_s(hd_msg, "T"), sel + 1u), vp_shift ? " DELAY " : " SPACE ");
+            put_u(m, (uint32_t)(*q * 100 / 127)), put_s(hd_msg + strlen(hd_msg), "%");
+            hd_until = fm1_ms + 1500u;
+            return;
+        }
         if (vp_page == VP_SAMPLE && e->id == VE_DATA) {   /* SAMPLE: DATA through the media's list */
             ml_sel += e->value > 0 ? 1 : -1;
             ml_sel = ml_sel < 0 ? 0 : ml_sel >= ml_n ? (ml_n ? ml_n - 1 : 0) : ml_sel;
@@ -170,13 +189,14 @@ static const char *const VP_HELP[] = {
     "F4 F5 F6", "IN (again: SAMPLE), VOICE, ROUTE: sound in on encoders 1..4",
     "SAMPLE", "REC records the input into the slot; DATA, ENTER load a WAV",
     "ENC 1..4", "the four knobs on the screen",
-    "ENC A / B", "the track / SELECT (tempo, steps)",
+    "ENC A", "the track into SPACE (SHIFT: DELAY)",
+    "ENC B", "SELECT (tempo, steps)",
     "DATA", "PRESETS: the sounds",
-    "PADS 1..4", "the track",
-    "PADS 5..8", "slots A..D",
-    "PADS 9..16", "DICE: HUSH .. MACHINE",
+    "PADS 1..4", "the track; again: its LATCH on / off",
+    "PADS 5..8", "projects A..D (SAVE held: saved there)",
+    "PADS 9..16", "DICE: a new part in a mood (PLAY runs it)",
     "STOP", "the sequencer; or the track's sound off (SHIFT: all)",
-    "< >", "the track before / after",
+    "< >", "UNDO / REDO",
     "RETURN", "the start page",
 };
 
