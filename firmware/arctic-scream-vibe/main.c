@@ -15,45 +15,91 @@
 
 static float vb_sr = 44100.0f, vb_step = 1.0f, vb_pos;   /* the host's rate; engine frames a host frame; where in the ring */
 
-/* ---- the panel, for now: pads 1..14 the FM-1's fourteen buttons, the encoders its seven, the keys play the selected
- * track (MIDI, as a keyboard on the FM-1's USB) */
-static uint32_t vb_btn;                         /* the FM-1 buttons held (BTN_ ids) */
-static const int8_t VB_ENC[VE_COUNT] = {ENC_KNOB1, ENC_KNOB2, ENC_KNOB3, ENC_KNOB4, ENC_ALGORITHM, ENC_PRESETS, ENC_SELECT};
-static float vb_enc_frac[VE_COUNT];             /* (fractional detents, summed) */
+/* ---- the parameters (the DAW's, the plugin's Editor): sound in and the VOICE. Their ids are for ever */
+enum { P_IN, P_MODE, P_GAIN, P_VOICE, P_PITCH, P_RING, P_RING_HZ, P_GROWL, P_HOLVUT, P_DRY, P_DELAY, P_SPACE, P_GRAIN,
+       P_HOLVUT_AMT, P_COUNT };
+static const char *const C_IN[] = {"OFF", "IN 1", "IN 2", "IN 1+2"};
+static const char *const C_MODE[] = {"LINE", "MIC", "HI-Z"};
+static const char *const C_HOLVUT[] = {"OFF", "T1", "T2", "T3", "T4", "ALL"};
+static const vibe_param PARAMS[P_COUNT] = {
+    {"in", "Input", 0, 3, 0, "", 4, C_IN},
+    {"in_mode", "Input type", 0, 2, 1, "", 3, C_MODE},
+    {"in_gain", "Input gain", -12, 36, 0, "dB", 0, 0},
+    {"voice", "Voice", 0, 100, 100, "%", 0, 0},
+    {"voice_pitch", "Pitch", -24, 12, -12, "st", 0, 0},
+    {"voice_ring", "Ring", 0, 100, 0, "%", 0, 0},
+    {"voice_ring_hz", "Ring freq", 20, 400, 60, "Hz", 0, 0},
+    {"voice_growl", "Growl", 0, 100, 20, "%", 0, 0},
+    {"in_holvut", "Into Holvut", 0, 5, 5, "", 6, C_HOLVUT},
+    {"in_dry", "Input level", 0, 100, 50, "%", 0, 0},
+    {"in_delay", "Input to DELAY", 0, 100, 0, "%", 0, 0},
+    {"in_space", "Input to SPACE", 0, 100, 40, "%", 0, 0},
+    {"in_grain", "Input to GRAIN", 0, 100, 0, "%", 0, 0},
+    {"in_holvut_amt", "Holvut hears", 0, 100, 60, "%", 0, 0},
+};
+static const char *const GROUPS[P_COUNT] = {"IN", "IN", "IN", "VOICE", "VOICE", "VOICE", "VOICE", "VOICE", "ROUTE",
+                                            "ROUTE", "ROUTE", "ROUTE", "ROUTE", "ROUTE"};
+static int vb_in_was = -1, vb_mode_was = -1;
+
+static void vb_input_sync(void)                 /* (not from the audio) the host's input on, its type, as the
+                                                 * parameters say */
+{
+    int in = (int)vibe_param_get(P_IN), mode = (int)vibe_param_get(P_MODE);
+    if (in != vb_in_was && in > 0) vibe_request(VIBE_REQ_AUDIO_INPUT);
+    if (mode != vb_mode_was || in != vb_in_was) vibe_input_mode(0, mode), vibe_input_mode(1, mode);
+    vb_in_was = in, vb_mode_was = mode;
+}
+
+static void vb_live_params(void)                /* (once a block) the parameters into live_in.c's settings */
+{
+    int h = (int)vibe_param_get(P_HOLVUT);
+    lv.on = (int)vibe_param_get(P_IN) > 0;
+    lv.gain = vd_exp2(vibe_param_get(P_GAIN) * (1.0f / 6.0206f));
+    lv.voice = vibe_param_get(P_VOICE) * 0.01f;
+    lv.shift = vd_exp2(vibe_param_get(P_PITCH) * (1.0f / 12.0f));
+    lv.ring = vibe_param_get(P_RING) * 0.01f;
+    lv.ring_hz = vibe_param_get(P_RING_HZ);
+    lv.growl = vibe_param_get(P_GROWL) * 0.01f;
+    live_ex = h == 5 ? 15u : h > 0 ? 1u << (h - 1) : 0u;
+    live_amt = (int32_t)(vibe_param_get(P_HOLVUT_AMT) * 1.27f + 0.5f);
+    live_g[0] = (int32_t)(vibe_param_get(P_DRY) * 163.84f);   /* (100 %: half, as a track at full LEVEL) */
+    live_g[1] = (int32_t)(vibe_param_get(P_DELAY) * 327.67f);
+    live_g[2] = (int32_t)(vibe_param_get(P_SPACE) * 327.67f);
+    live_g[3] = (int32_t)(vibe_param_get(P_GRAIN) * 327.67f);
+}
+
+#include "port/panel.c"                         /* the VIBE's controls and display */
 
 void vibe_on_init(float sample_rate)
 {
     vb_sr = sample_rate > 1000.0f ? sample_rate : 44100.0f;
     vb_step = (float)FS / vb_sr;
     vibe_notes(VIBE_NOTES);
+    vibe_params(PARAMS, P_COUNT);
+    vibe_param_groups(GROUPS);
+    li_step = vb_sr / (float)FS;
+    vb_input_sync();
     memset(fake_flash, 0xFF, sizeof fake_flash);   /* (erased, as a new FM-1's: the factory samples go in at boot) */
     app_start();
 }
 
 void vibe_on_event(const vibe_event *e)
 {
-    if (e->type == VIBE_EV_NOTE) {
+    if (e->type == VIBE_EV_PARAM) vb_input_sync();
+    else if (e->type == VIBE_EV_NOTE) {         /* the keys, MIDI, the DAW: the selected track (as MIDI on the FM-1) */
         uint32_t v = (uint32_t)(e->value * 127.0f + 0.5f);
         vb_midi(e->down ? 0x90u : 0x80u, (uint32_t)e->id, e->down ? (v ? v : 1u) : 0u);
-    } else if (e->type == VIBE_EV_PAD && e->id < 14) {
-        if (e->down) vb_btn |= 1u << e->id;
-        else vb_btn &= ~(1u << e->id);
-        vb_buttons(vb_btn);
-    } else if (e->type == VIBE_EV_ENCODER && e->id < VE_COUNT) {
-        int32_t d;
-        vb_enc_frac[e->id] += e->value;
-        d = (int32_t)vb_enc_frac[e->id];
-        vb_enc_frac[e->id] -= (float)d;
-        if (d) vb_enc((uint32_t)VB_ENC[e->id], d);
-    }
+    } else
+        vp_event(e);
 }
 
 static float vb_at(uint32_t i, uint32_t c) { return ring[(i % RING) * 2u + c]; }
 
 void vibe_on_audio(const float *in, float *out_l, float *out_r, int frames)
 {
-    int k;
-    (void)in;
+    int k, src = (int)vibe_param_get(P_IN);   /* (1 IN 1, 2 IN 2, 3 both) */
+    vb_live_params();
+    live_put(src & 1 ? in : 0, src & 2 ? vibe_input(1) : 0, frames);
     for (k = 0; k < frames; k++) {
         uint32_t i = ring_r + (uint32_t)vb_pos, c;
         float t = vb_pos - (float)(uint32_t)vb_pos, o[2];
@@ -74,16 +120,11 @@ void vibe_on_audio(const float *in, float *out_l, float *out_r, int frames)
     }
 }
 
-/* ---- the display: the FM-1's 240 x 240 screen, 4/3 as big (320 x 320) in the middle, for now; and to an FM-1 under
- * VIBE FM Link as it is (SDK 25) */
+/* ---- the display (port/panel.c); the FM-1's screen also to an FM-1 under VIBE FM Link, as it is (SDK 25) */
 void vibe_on_draw(uint16_t *vfb)
 {
-    uint32_t x, y;
-    for (y = 0; y < VIBE_SCREEN_H; y++) {
-        uint16_t *row = vfb + y * VIBE_SCREEN_W;
-        const uint16_t *src = fb + (y * 3u / 4u) * 240u;
-        for (x = 0; x < 80u; x++) row[x] = row[VIBE_SCREEN_W - 1u - x] = 0;
-        for (x = 0; x < 320u; x++) row[80u + x] = vb_lit ? src[x * 3u / 4u] : 0;
-    }
+    int o = 1 + set.oct;                        /* (the keys' octave follows OCT- / OCT+ as the FM-1 has it: C3 at 0) */
+    vibe_keys_octave(o < 0 ? 0 : o > 7 ? 7 : o);
+    vp_draw(vfb);
     vibe_link_screen(fb);
 }

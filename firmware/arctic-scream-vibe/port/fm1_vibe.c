@@ -250,3 +250,5 @@ static void vb_midi(uint32_t st, uint32_t d1, uint32_t d2)
     mq[mq_w % 64u][0] = (uint8_t)st; mq[mq_w % 64u][1] = (uint8_t)(d1 & 127u); mq[mq_w % 64u][2] = (uint8_t)(d2 & 127u);
     mq_w++;
 }
+
+#include "live_in.c"                            /* sound in: VIBE FM's IN 1 / IN 2, the VOICE */
