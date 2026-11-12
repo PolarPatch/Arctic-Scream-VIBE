@@ -10,7 +10,8 @@
  *   HOME        what every control does (vg_controls); the library is the host's (held, SHIFT + HOME)
  *   PLAY REC    PLAY, REC; STOP: PLAY while it plays
  *   OCT - / +   OCT- / OCT+ (the keys follow: vibe_keys_octave)
- *   enc 1..4    KNOB 1..4 (on IN, VOICE, ROUTE: those four values); A the track (ALGORITHM), B PRESETS, DATA SELECT
+ *   enc 1..4    KNOB 1..4 (on IN, VOICE, ROUTE: those four values); A the track (ALGORITHM), B SELECT (the tempo, the
+ *               steps), DATA PRESETS (the big wheel: the sounds)
  *   keys        notes on the selected track (MIDI, with the DAW's)
  *   pads        nothing held: 1..4 the track, 5..8 slots A..D (recalled), 9..16 DICE's eight moods on the track;
  *               a button held: the FM-1's function keys under it, 1..8 its eight white keys from F2, 9..16 the next
@@ -25,7 +26,7 @@ static uint32_t vp_shift, vp_f_t = 0x80000000u;   /* SHIFT held; fm1_ms of the l
 
 static const int8_t VP_K[6] = {BTN_EDIT, BTN_ENV, BTN_LFO, BTN_ARP, BTN_FX, BTN_SEQ};
 static const int8_t VP_F[3] = {BTN_SEL, BTN_GLO, BTN_SAVE};
-static const int8_t VP_ENC[VE_COUNT] = {ENC_KNOB1, ENC_KNOB2, ENC_KNOB3, ENC_KNOB4, ENC_ALGORITHM, ENC_PRESETS, ENC_SELECT};
+static const int8_t VP_ENC[VE_COUNT] = {ENC_KNOB1, ENC_KNOB2, ENC_KNOB3, ENC_KNOB4, ENC_ALGORITHM, ENC_SELECT, ENC_PRESETS};
 static float vp_frac[VE_COUNT];                 /* (fractional detents, summed) */
 static const uint32_t VP_TRK[4] = {0x22d3ee, 0x3fb950, 0xa78bfa, 0xff1a8c};   /* the tracks' colours (ui.c UI_ACCENTS) */
 static const char *const VP_MOOD[8] = {"HUSH", "STILL", "SWELL", "DRIFT", "ECHO", "PULSE", "ARP", "MACHINE"};
@@ -155,8 +156,8 @@ static const char *const VP_HELP[] = {
     "F4 F5 F6", "IN (again: SAMPLE), VOICE, ROUTE: sound in on encoders 1..4",
     "SAMPLE", "REC records the input into the slot; DATA, ENTER load a WAV",
     "ENC 1..4", "the four knobs on the screen",
-    "ENC A / B", "the track / PRESETS",
-    "DATA", "SELECT (steps, tempo)",
+    "ENC A / B", "the track / SELECT (tempo, steps)",
+    "DATA", "PRESETS: the sounds",
     "PADS 1..4", "the track",
     "PADS 5..8", "slots A..D",
     "PADS 9..16", "DICE: HUSH .. MACHINE",
