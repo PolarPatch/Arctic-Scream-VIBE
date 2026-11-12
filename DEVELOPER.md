@@ -43,6 +43,19 @@ Working name: **Arctic Scream VIBE**. Firmware id (the folder's name, permanent)
 What the contest form will list as VIBE features: audio in, the 480 × 320 screen, the pads, the stage, the DAW's song
 position, the extra memory.
 
+## Versions: one Arctic Scream, two devices
+
+- **The VIBE version is the FM-1 version.** Arctic Scream VIBE starts at **2.0**, as Arctic Scream 2.0 on the FM-1
+  (`firmware.json` `version`, `main.c` `APP_VER`). A release is the same number on both: 2.1 on the FM-1 and 2.1 on
+  the VIBE carry the same engine (OberVave does the same: 3.x on the VIBE after 2.x on the FM-1).
+- **Two threads at once.** A new feature is built where it belongs and reaches both where it can:
+  - the sound, the pages, the presets, DICE, JIEHKKI and the rest: in the engine, in `arctic-drones` first, tested on
+    the FM-1 and synced here (`tools/sync_engine.sh`);
+  - what only the VIBE can (sound in, long samples, the big screen, the pads, the stage, the DAW): here, in `port/`,
+    with a hook in the engine behind a switch the FM-1 never sets (`FM1_LIVE_IN`, `FM1_PLATFORM_FILE`).
+- The FM-1's tests stay green after every engine change (`tests/run_host.sh`, the ARM build), and `vibe-check` passes
+  here.
+
 ## Rules for this project (as for Arctic Scream)
 
 - Reply to the user in Norwegian. Code, comments, commits and docs in English, in the same style as `arctic-drones`.
