@@ -126,7 +126,8 @@ void vibe_on_audio(const float *in, float *out_l, float *out_r, int frames)
     for (k = 0; k < frames; k++) {
         uint32_t i = ring_r + (uint32_t)vb_pos, c;
         float t = vb_pos - (float)(uint32_t)vb_pos, o[2];
-        while (ring_w - i < 3u) app_step();     /* (the engine's next millisecond: up to 256 frames more) */
+        while (ring_w - i < 3u) dm_step(), app_step();   /* (the engine's next millisecond: up to 256 frames more;
+                                                 * a demo's next action first) */
         for (c = 0; c < 2u; c++) {              /* cubic Hermite through i-1 .. i+2 */
             float y0 = vb_at(i - 1u, c), y1 = vb_at(i, c), y2 = vb_at(i + 1u, c), y3 = vb_at(i + 2u, c);
             float a = (y3 - y0) * 0.5f + (y1 - y2) * 1.5f, b = y0 - y1 * 2.5f + y2 * 2.0f - y3 * 0.5f, d = (y2 - y0) * 0.5f;

@@ -52,7 +52,18 @@ static void vp_home_full(uint16_t *vfb)
     hm_rect(0, 0, 76, HM_HEAD - 2, ui_hd);      /* the header: its button's block, the bar with the track and tempo */
     hm_text(6, 4, ui_hb, 2, UI_K);
     hm_rect(78, 0, VIBE_SCREEN_W - 78, HM_HEAD - 2, UI_D0);
-    hm_text(86, 4, ui_hl, 2, UI_W);
+    if (dm_shown >= 0 && fm1_ms >= hd_until) { /* a demo: its name in the header, what it is under it */
+        char h[24];
+        uint32_t n = 0;
+        const char *q;
+        for (q = DEMOS[dm_shown].id; *q && n < 4u; ) h[n++] = *q++;
+        h[n++] = ' ';
+        for (q = DEMOS[dm_shown].name; *q && n < 23u; ) h[n++] = *q++;
+        h[n] = 0;
+        hm_text(86, 4, h, 2, UI_W);
+        hm_text(24, top + 4, DEMOS[dm_shown].sub, 1, UI_M0);
+    } else
+        hm_text(86, 4, ui_hl, 2, UI_W);
     hm_text(VIBE_SCREEN_W - 6 - 16 * (int)strlen(ui_hr), 4, ui_hr, 2, UI_L0);
     {                                           /* the field's corners */
         int x0 = 4, y0 = top, x1 = VIBE_SCREEN_W - 5, y1 = bot;

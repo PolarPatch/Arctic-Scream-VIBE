@@ -206,7 +206,7 @@ static void app_audio(int32_t *out, uint32_t n);
 #define RING 4096u
 static float ring[RING * 2u];
 static uint32_t ring_w, ring_r, vb_owed;
-static int32_t vb_knob = 700, vb_knob_avg = 512 * 16, vb_master_q12 = 2048;   /* MASTER: 0..1023, as the ADC */
+static int32_t vb_knob = 1023, vb_knob_avg = 1023 * 16, vb_master_q12 = 4088;   /* MASTER: at its top (the VIBE's VOLUME is the host's) */
 static int32_t fm1_master(void) { return vb_master_q12; }   /* (the app's output stage asks) */
 
 static void platform_poll(void)                 /* one call = one millisecond */
@@ -228,7 +228,7 @@ static void platform_poll(void)                 /* one call = one millisecond */
         for (i = 0; i < 2u * HALF_FRAMES; i++) {
             int32_t v = blk[i];                 /* (MASTER applied by the app, fm1_master) */
             v = v > 32767 ? 32767 : v < -32767 ? -32767 : v;
-            ring[(ring_w * 2u + i) % (RING * 2u)] = (float)v / 65536.0f;   /* -6 dBFS, as the web player */
+            ring[(ring_w * 2u + i) % (RING * 2u)] = (float)v * (0.7071f / 32768.0f);   /* -3 dBFS at full, as the FM-1 2.0 */
         }
         ring_w += HALF_FRAMES;
     }

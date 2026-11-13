@@ -2,10 +2,11 @@
 /* Copyright (C) 2026 PolarPatch */
 /* Arctic Scream VIBE's panel: VIBE FM's controls onto Arctic Scream, and its display in the house layout.
  *
- *   K1..K6      SOUND ENV LFO ARP FX SEQ: the FM-1's EDIT, ENV, LFO, ARP, FX, SEQ (pressed again: their next page;
+ *   K1..K6      the demos A1..A6 (the FM-1's web page's: port/demo.c); HOME names the one playing
+ *   F1..F6      SOUND ENV LFO ARP FX SEQ: the FM-1's EDIT, ENV, LFO, ARP, FX, SEQ (pressed again: their next page;
  *               held: their layer on the pads, as on the FM-1's keys)
- *   F1 F2 F3    SEL, GLOBAL, SAVE (held: their layers on the pads)
- *   F4 F5 F6    IN, VOICE, ROUTE: sound in, on the right half (encoders 1..4 its four values); again: back
+ *   SHIFT F1..3 SEL, GLOBAL, SAVE (held: their layers on the pads)
+ *   SHIFT F4..6 IN (again: SAMPLE), VOICE, ROUTE: sound in, on the right half (encoders 1..4 its four values)
  *   RETURN      the FM-1's HOME (and the right half back to the pads)
  *   HOME        what every control does (vg_controls); the library is the host's (held, SHIFT + HOME)
  *   PLAY REC    PLAY, REC (SAMPLE: REC records the input)
@@ -23,7 +24,8 @@ enum { VP_FM, VP_IN, VP_VOICE, VP_ROUTE, VP_SAMPLE };   /* the FM-1's pages / so
 static int vp_page = VP_FM, vp_help;
 static uint32_t vp_btn;                         /* the FM-1 buttons the VIBE holds (BTN_ ids) */
 static uint32_t vp_fkeys;                       /* the FM-1 keys the pads hold (bit = key) */
-static int8_t vp_padkey[16];                    /* a held pad's FM-1 key (-1: a direct function, none) */
+static int8_t vp_padkey[16];
+#include "demo.c"                               /* the demos on K1..K6 */                    /* a held pad's FM-1 key (-1: a direct function, none) */
 static uint32_t vp_stop_seq;                   /* (STOP pressed to stop the sequencer: its let go too) */
 static uint32_t vp_shift, vp_f_t = 0x80000000u;   /* SHIFT held; fm1_ms of the last F key */
 
@@ -95,10 +97,23 @@ static void vp_event(const vibe_event *e)
         if (b == VB_HOME) { if (e->down) vp_help = !vp_help; return; }
         if (vp_help && e->down && (b == VB_RETURN)) { vp_help = 0; return; }
         if (b >= VB_F1 && b <= VB_F6 && e->down) vp_f_t = fm1_ms;
-        if (b >= VB_K1 && b <= VB_K6) vp_set_btn(VP_K[b - VB_K1], e->down);
-        else if (b >= VB_F1 && b <= VB_F3) vp_set_btn(VP_F[b - VB_F1], e->down);
-        else if (b == VB_F4) { if (e->down) vp_page = vp_page == VP_IN ? VP_SAMPLE : vp_page == VP_SAMPLE ? VP_FM : VP_IN; }
-        else if (b >= VB_F5 && b <= VB_F6) { if (e->down) vp_page = vp_page == b - VB_F4 + VP_IN ? VP_FM : b - VB_F4 + VP_IN; }
+        if (b >= VB_K1 && b <= VB_K6) { if (e->down) dm_start((uint32_t)(b - VB_K1)), vp_page = VP_FM; }   /* the demos */
+        else if (b >= VB_F1 && b <= VB_F6) {    /* F1..F6: SOUND ENV LFO ARP FX SEQ; SHIFT: SEL GLOBAL SAVE IN VOICE
+                                                 * ROUTE (the button an F key pressed is let go with it) */
+            static int8_t held[6] = {-1, -1, -1, -1, -1, -1};
+            int f = b - VB_F1;
+            if (!e->down) {
+                if (held[f] >= 0) vp_set_btn(held[f], 0), held[f] = -1;
+            } else if (!vp_shift) {
+                held[f] = VP_K[f], vp_set_btn(VP_K[f], 1);
+                if (vp_page != VP_FM) vp_page = VP_FM;
+            } else if (f < 3) {
+                held[f] = VP_F[f], vp_set_btn(VP_F[f], 1);
+            } else if (f == 3)
+                vp_page = vp_page == VP_IN ? VP_SAMPLE : vp_page == VP_SAMPLE ? VP_FM : VP_IN;
+            else
+                vp_page = vp_page == f - 3 + VP_IN ? VP_FM : f - 3 + VP_IN;
+        }
         else if (vp_page == VP_SAMPLE && (b == VB_ENTER || b == VB_DATA_PUSH)) { if (e->down) ml_open((uint32_t)vibe_param_get(P_SLOT)); }
         else if (vp_page == VP_SAMPLE && b == VB_RETURN && ml_cur[0]) { if (e->down) ml_up(); }
         else if (vp_page == VP_SAMPLE && b == VB_REC) {   /* SAMPLE: REC records the sound in into the slot (again: kept) */
@@ -119,6 +134,7 @@ static void vp_event(const vibe_event *e)
             else if (!e->down && vp_stop_seq) vp_stop_seq = 0, vp_set_btn(BTN_PLAY, 0);
             else if (e->down) {
                 uint32_t t;
+                dm_cur = dm_shown = -1;         /* (a demo: no longer named) */
                 for (t = 0; t < NT; t++)
                     if (vp_shift || t == sel) gen_on &= ~(1u << t), nq_put(NQ_RELEASE, t, 0);
             }
@@ -179,14 +195,14 @@ static void vp_leds(void)                       /* the pads' lights: the tracks,
             c = VP_TRK[sel & 3u], l = 0.15f + 0.05f * (float)(p - 8);
         vibe_led_pad(p, c, l);
     }
-    for (p = 0; p < 6; p++) vibe_led_button(VB_K1 + p, VP_TRK[sel & 3u], PAGES[page].btn == VP_K[p] ? 1.0f : 0.15f);
-    for (p = 0; p < 3; p++) vibe_led_button(VB_F4 + p, 0xff1a8c, vp_page == VP_IN + p ? 1.0f : 0.15f);
+    for (p = 0; p < 6; p++) vibe_led_button(VB_K1 + p, 0xa78bfa, dm_shown == p ? 1.0f : 0.15f);   /* (the demo playing) */
 }
 
 static const char *const VP_HELP[] = {
-    "K1..K6", "SOUND ENV LFO ARP FX SEQ (again: next page; held: its pad layer)",
-    "F1 F2 F3", "SEL, GLOBAL, SAVE (held: mutes, solos, slots on the pads)",
-    "F4 F5 F6", "IN (again: SAMPLE), VOICE, ROUTE: sound in on encoders 1..4",
+    "K1..K6", "the demos A1..A6",
+    "F1..F6", "SOUND ENV LFO ARP FX SEQ (again: next page; held: pad layer)",
+    "SHIFT F1..F3", "SEL, GLOBAL, SAVE (held: mutes, solos, slots on the pads)",
+    "SHIFT F4..F6", "IN (again: SAMPLE), VOICE, ROUTE: sound in",
     "SAMPLE", "REC records the input into the slot; DATA, ENTER load a WAV",
     "ENC 1..4", "the four knobs on the screen",
     "ENC A", "the track into SPACE (SHIFT: DELAY)",
@@ -290,12 +306,15 @@ static void vp_draw(uint16_t *vfb)
     }
     if (vp_shift || fm1_ms - vp_f_t < 2000u) {  /* the soft keys' captions: only while SHIFT is held, or a moment after
                                                  * an F key (over the bottom line) */
-        static const char *const F[6] = {"SEL", "GLOBAL", "SAVE", "IN", "VOICE", "ROUTE"};
+        static const char *const CAP_S[6] = {"SEL", "GLOBAL", "SAVE", "IN", "VOICE", "ROUTE"};
+        static const char *const CAP_P[6] = {"SOUND", "ENV", "LFO", "ARP", "FX", "SEQ"};
+        const char *const *FC = vp_shift ? CAP_S : CAP_P;
         vg_begin(vfb);
         vg_rect(0, 0, 480, 24, 0x161f2a);       /* (over the header, a moment: it covers nothing that plays) */
         for (i = 0; i < 6; i++) {
-            int hi = i >= 3 && (vp_page == VP_IN + i - 3 || (i == 3 && vp_page == VP_SAMPLE));
-            vg_text(i == 3 && vp_page == VP_SAMPLE ? "SAMPLE" : F[i], 40 + i * 80, 4, VG_SMALL, hi ? 0xff1a8c : 0xC0C6D0,
+            int hi = vp_shift ? i >= 3 && (vp_page == VP_IN + i - 3 || (i == 3 && vp_page == VP_SAMPLE))
+                              : vp_page == VP_FM && PAGES[page].btn == VP_K[i];
+            vg_text(vp_shift && i == 3 && vp_page == VP_SAMPLE ? "SAMPLE" : FC[i], 40 + i * 80, 4, VG_SMALL, hi ? 0xff1a8c : 0xC0C6D0,
                     VG_CENTER);
         }
     }
