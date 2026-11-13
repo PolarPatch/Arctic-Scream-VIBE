@@ -90,7 +90,12 @@ void vibe_on_init(float sample_rate)
     memset(fake_flash, 0xFF, sizeof fake_flash);   /* (erased, as a new FM-1's) */
     vs_load();                                  /* (what the host kept: the FM-1 as it was left) */
     { char p[8]; int a, b2, c; (void)vibe_media_dropped(p, 0, &a, &b2, &c); }   /* (SDK 14: drops welcome) */
-    app_start();
+    {
+        int fresh = vb_set_len < 0;             /* (no settings kept: a first start) */
+        app_start();
+        if (fresh) sy_scr = set.scr = NSCR - 1u;   /* (the VIBE's first start: SCREEN OFF is GUOVSSAHAS, the northern
+                                                 * lights after 2 min untouched; SYSTEM changes it as on the FM-1) */
+    }
 }
 
 void vibe_on_event(const vibe_event *e)

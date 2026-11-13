@@ -247,6 +247,17 @@ static void vp_text_value(int p, char *b)       /* a parameter's value as text *
 
 #include "home.c"                               /* HOME at the display's own size */
 
+static void vp_fm1_2x(uint16_t *vfb)            /* the FM-1's screen twice its size, its middle 320 rows: the boot screen's
+                                                 * glitching title and GUOVSSAHAS's northern lights fill the display */
+{
+    uint32_t x, y;
+    for (y = 0; y < VIBE_SCREEN_H; y++) {
+        uint16_t *row = vfb + y * VIBE_SCREEN_W;
+        const uint16_t *src = fb + ((y + 80u) >> 1) * 240u;
+        for (x = 0; x < VIBE_SCREEN_W; x++) row[x] = src[x >> 1];
+    }
+}
+
 static void vp_fm1_full(uint16_t *vfb)          /* the FM-1's screen as it is, as tall as the display (240 -> 320, each
                                                  * pixel 1 or 2 wide and high: the pixel look kept) in the middle; on
                                                  * HOME its night sky goes on into the sides */
@@ -295,6 +306,10 @@ static void vp_draw(uint16_t *vfb)
     if (vp_help) { vg_controls("ARCTIC SCREAM", VP_HELP, sizeof VP_HELP / sizeof VP_HELP[0] / 2); return; }
     vg_clear(0x05080d);
     if (!vb_lit) return;                        /* (SCREEN OFF: dark) */
+    if (fm1_ms - ui_boot_t < UI_BOOT_MS || (scr_dark && scr_aur)) {   /* the boot screen, GUOVSSAHAS: the FM-1's, big */
+        vp_fm1_2x(vfb);
+        return;
+    }
     if (vp_page == VP_FM && page == PG_HOME) vp_home_full(vfb);   /* HOME: drawn again, the whole display */
     else if (vp_page == VP_FM) vp_fm1_full(vfb);   /* the FM-1's other pages: its screen, full height */
     else {                                      /* sound in's pages: the FM-1's screen left, the page right */
