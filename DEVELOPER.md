@@ -132,6 +132,14 @@ stay one engine. Fixes to the engine are made in `arctic-drones` first.
 7. **Release:** icon, LICENSING, README, screenshots, a short video; the repo public, a release with the `.wasm`;
    the user submits it on the hub well before 15 December.
 
+## Ideas waiting
+
+- **From ZEN-1 (2026-11-13):** the Arctic that plays (the aurora, the ice and the snow on the display make the notes;
+  the keys reach into the picture) and the ice that answers your notes. Engine ideas, written up in arctic-drones'
+  DEVELOPER.md ("What ZEN-1 showed"); the VIBE's display and stage are where they would shine. Waiting.
+- **The split screen:** back to full screen by itself after ~8 s untouched; the right half in the FM-1's pixel look; the
+  left half the tracks alone, full height.
+
 ## Log
 
 - 2026-11-13: started. The folder, these notes, the SDK cloned at 86d02ca. The GitHub repo
