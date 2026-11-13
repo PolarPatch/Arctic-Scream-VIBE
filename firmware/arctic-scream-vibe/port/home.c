@@ -34,6 +34,19 @@ static uint32_t hm_888(uint16_t c)              /* RGB565 -> 0xRRGGBB (for vg_li
     return (r << 3 | r >> 2) << 16 | (g << 2 | g >> 4) << 8 | (b << 3 | b >> 2);
 }
 
+static int hm_card_top, hm_card_bot;
+static void hm_card_row(uint32_t y, const uint8_t *cells)   /* (2.1) a row of the sound's picture: 4 x 4 pixels a cell,
+                                                 * 464 wide; its middle rows in the field, the rest cut */
+{
+    const uint16_t *pal = PIC_PAL[pc_id % NPIC];
+    int yy = (hm_card_top + hm_card_bot) / 2 - (int)PIC_H * 2 + (int)y * 4, x;
+    if (yy + 4 <= hm_card_top || yy >= hm_card_bot) return;
+    for (x = 0; x < (int)PIC_W; x++) {
+        int y0 = yy < hm_card_top ? hm_card_top : yy, y1 = yy + 4 > hm_card_bot ? hm_card_bot : yy + 4;
+        hm_rect(8 + x * 4, y0, 4, y1 - y0, pal[cells[x]]);
+    }
+}
+
 #define HM_HEAD 26                              /* the header's height */
 #define HM_SLAB 52                              /* the slabs' height (the FM-1's 72, packed) */
 static void vp_home_full(uint16_t *vfb)
@@ -73,7 +86,14 @@ static void vp_home_full(uint16_t *vfb)
         hm_rect(x0, y0, 14, 3, ui_acc), hm_rect(x0, y0, 3, 14, ui_acc);
         hm_rect(x1 - 13, y1 - 2, 14, 3, ui_acc), hm_rect(x1 - 2, y1 - 13, 3, 14, ui_acc);
     }
-    for (t = 0; t < (int)NT; t++) {             /* the four tracks: the number, the wave across the width */
+    if (pic_card_on()) {                        /* (2.1) PRESETS turned: the sound's picture, big, its name on it */
+        hm_card_top = top, hm_card_bot = bot;
+        pic_rows(pc_id, hm_card_row);
+        hm_rect(10, top + 6, 16 * (int)strlen(pc_name) + 12, 22, UI_K);
+        hm_text(16, top + 9, pc_name, 2, UI_W);
+        t = (int)NT;                            /* (no waves over it) */
+    }
+    for (t = pic_card_on() ? (int)NT : 0; t < (int)NT; t++) {                  /* the four tracks: the number, the wave across the width */
         int c = top + lane / 2 + t * lane, flat = 1;
         uint16_t col = wv_col((uint32_t)t), dim = ui_mix(UI_K, col, 1, 3);
         float wx[SC_N], wy[SC_N];
