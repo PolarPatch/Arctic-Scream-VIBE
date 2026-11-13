@@ -45,6 +45,10 @@ position, the extra memory.
 
 ## Versions: one Arctic Scream, two devices
 
+- **Patch releases, as we go:** what changes on the VIBE alone (the panel, the display, tweaks) is pushed to `main`
+  as it is made and released as 2.0.1, 2.0.2 and so on: `firmware.json` `version` and `main.c` `APP_VER` set to it,
+  then the tag `v2.0.N` (the workflow checks that they match, builds and releases). A release's files are never
+  replaced: a fix is the next number. The hub takes the newest release.
 - **The VIBE version is the FM-1 version.** Arctic Scream VIBE starts at **2.0**, as Arctic Scream 2.0 on the FM-1
   (`firmware.json` `version`, `main.c` `APP_VER`). A release is the same number on both: 2.1 on the FM-1 and 2.1 on
   the VIBE carry the same engine (OberVave does the same: 3.x on the VIBE after 2.x on the FM-1).

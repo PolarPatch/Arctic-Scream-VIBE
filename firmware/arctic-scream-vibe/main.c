@@ -6,7 +6,7 @@
  * The engine runs as on the FM-1, on a fake FM-1 (port/fm1_vibe.c), at its own 44.1 kHz: vibe_on_audio asks it for
  * the milliseconds the block needs (app_step, each one platform_poll) and resamples its ring to the host's rate. */
 #define FM1_PLATFORM_FILE "../port/fm1_vibe.c"   /* (platform.c includes it, relative to engine/) */
-#define APP_VER "2.0"                           /* (the same as Arctic Scream on the FM-1: DEVELOPER.md) */
+#define APP_VER "2.0.1"                         /* (the same as Arctic Scream on the FM-1: DEVELOPER.md) */
 #include "engine/grimm.c"
 
 #include "vibe.h"
