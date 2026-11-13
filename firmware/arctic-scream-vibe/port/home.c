@@ -64,7 +64,10 @@ static void vp_home_full(uint16_t *vfb)
         hm_text(24, top + 4, DEMOS[dm_shown].sub, 1, UI_M0);
     } else
         hm_text(86, 4, ui_hl, 2, UI_W);
-    hm_text(VIBE_SCREEN_W - 6 - 16 * (int)strlen(ui_hr), 4, ui_hr, 2, UI_L0);
+    if (fm1_ms - vp_data_t < 1500u)             /* DATA just turned: it is PRESETS (its print says DATA: the host's) */
+        hm_text(VIBE_SCREEN_W - 6 - 16 * 7, 4, "PRESETS", 2, ui_hd);
+    else
+        hm_text(VIBE_SCREEN_W - 6 - 16 * (int)strlen(ui_hr), 4, ui_hr, 2, UI_L0);
     {                                           /* the field's corners */
         int x0 = 4, y0 = top, x1 = VIBE_SCREEN_W - 5, y1 = bot;
         hm_rect(x0, y0, 14, 3, ui_acc), hm_rect(x0, y0, 3, 14, ui_acc);

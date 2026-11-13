@@ -26,7 +26,8 @@ static uint32_t vp_btn;                         /* the FM-1 buttons the VIBE hol
 static uint32_t vp_fkeys, vp_kkeys;             /* the FM-1 keys the pads hold, the VIBE's keys hold (bit = key) */
 static int8_t vp_padkey[16];
 #include "demo.c"                               /* the demos on K1..K6 */                    /* a held pad's FM-1 key (-1: a direct function, none) */
-static uint32_t vp_stop_seq;                   /* (STOP pressed to stop the sequencer: its let go too) */
+static uint32_t vp_stop_seq, vp_data_t = 0x80000000u;   /* (STOP pressed to stop the sequencer: its let go too;
+                                                 * fm1_ms of DATA's last turn) */                   /* (STOP pressed to stop the sequencer: its let go too) */
 static uint32_t vp_shift, vp_f_t = 0x80000000u;   /* SHIFT held; fm1_ms of the last F key */
 
 static const int8_t VP_K[6] = {BTN_EDIT, BTN_ENV, BTN_LFO, BTN_ARP, BTN_FX, BTN_SEQ};
@@ -175,6 +176,7 @@ static void vp_event(const vibe_event *e)
             ml_sel = ml_sel < 0 ? 0 : ml_sel >= ml_n ? (ml_n ? ml_n - 1 : 0) : ml_sel;
             return;
         }
+        if (e->id == VE_DATA) vp_data_t = fm1_ms;   /* (HOME says PRESETS a moment) */
         vp_frac[e->id] += e->value;
         d = (int32_t)vp_frac[e->id];
         vp_frac[e->id] -= (float)d;
@@ -267,12 +269,29 @@ static void vp_fm1_full(uint16_t *vfb)          /* the FM-1's screen as it is, a
     }
 }
 
+static void vp_link(void)                       /* (SDK 24) the encoders' names and values to a controller with a screen (an
+                                                 * FM-1 under VIBE FM Link): DATA is PRESETS there too */
+{
+    char v[12];
+    int k;
+    vibe_link_page(PAGES[page].name);
+    for (k = 0; k < 4; k++) {
+        const char *n = knob_name(page, (uint32_t)k);
+        knob_text(page, (uint32_t)k, v);
+        vibe_link_encoder(VE_1 + k, n ? n : "", v);
+    }
+    put_u(v, (uint32_t)(trk[sel].rev * 100 / 127)), vibe_link_encoder(VE_A, "SPACE", v);
+    put_u(v, (uint32_t)seq_bpm), vibe_link_encoder(VE_B, "TEMPO", v);
+    vibe_link_encoder(VE_DATA, "PRESETS", "");
+}
+
 static void vp_draw(uint16_t *vfb)
 {
     uint32_t x, y;
     char b[24];
     int i;
     vp_leds();
+    vp_link();
     if (vp_help) { vg_controls("ARCTIC SCREAM", VP_HELP, sizeof VP_HELP / sizeof VP_HELP[0] / 2); return; }
     vg_clear(0x05080d);
     if (!vb_lit) return;                        /* (SCREEN OFF: dark) */
