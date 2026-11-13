@@ -142,5 +142,9 @@ stay one engine. Fixes to the engine are made in `arctic-drones` first.
 
 ## Log
 
+- 2026-11-13 (night): branch `feature/2.2`, the engine of arctic-drones' `feature/2.2`: the pictures move (the big
+  card and SKY through the engine's `pic_anim_rows`, `port/home.c`), JAHKI (LFO's fifth page: the Sami year's eight
+  seasons leaning the sound), the ice holding its breath, JIEHKKI's dusk and START ALWAYS. The keys' lights are the
+  FM-1's (the VIBE's pads keep their own). `vibe-check` passes.
 - 2026-11-13: started. The folder, these notes, the SDK cloned at 86d02ca. The GitHub repo
   `PolarPatch/Arctic-Scream-VIBE` to be created private, made public for the release.
