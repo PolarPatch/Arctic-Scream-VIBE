@@ -26,6 +26,7 @@ static uint32_t vp_btn;                         /* the FM-1 buttons the VIBE hol
 static uint32_t vp_fkeys, vp_kkeys;             /* the FM-1 keys the pads hold, the VIBE's keys hold (bit = key) */
 static int8_t vp_padkey[16];
 #include "demo.c"                               /* the demos on K1..K6 */                    /* a held pad's FM-1 key (-1: a direct function, none) */
+static uint32_t vp_touch_t, vp_welcome;         /* (fm1_ms of the hands' last touch; the first start's welcome card, up) */
 static uint32_t vp_stop_seq, vp_data_t = 0x80000000u;   /* (STOP pressed to stop the sequencer: its let go too;
                                                  * fm1_ms of DATA's last turn) */                   /* (STOP pressed to stop the sequencer: its let go too) */
 static uint32_t vp_shift, vp_f_t = 0x80000000u;   /* SHIFT held; fm1_ms of the last F key */
@@ -93,6 +94,9 @@ static void vp_value(int i, float d)            /* sound in's page: its value i 
 
 static void vp_event(const vibe_event *e)
 {
+    vp_touch_t = fm1_ms;
+    if ((e->type == VIBE_EV_BUTTON || e->type == VIBE_EV_PAD) ? e->down : e->type == VIBE_EV_ENCODER)
+        vp_welcome = 0;                         /* (the welcome card: any control takes it away, and does its job) */
     if (e->type == VIBE_EV_BUTTON) {
         int b = e->id;
         if (b == VB_HOME) { if (e->down) vp_help = !vp_help; return; }
@@ -247,6 +251,25 @@ static void vp_text_value(int p, char *b)       /* a parameter's value as text *
 
 #include "home.c"                               /* HOME at the display's own size */
 
+static void vp_welcome_card(uint16_t *vfb)      /* the first start, after the boot screen: the few controls that matter
+                                                 * (after ZEN-1's welcome card), in the FM-1's look */
+{
+    static const char *const L[][2] = {{"K1 - K6", "THE SIX DEMOS"}, {"KEYS", "PLAY THE TRACK"}, {"DATA", "THE SOUNDS"},
+                                       {"PADS 1 - 4", "THE TRACKS"}, {"STOP", "LET THE SOUND GO"},
+                                       {"SHIFT + F4", "YOUR MICROPHONE"}, {"HOME", "EVERY CONTROL"}};
+    int i;
+    hm_fb = vfb;
+    hm_rect(0, 0, VIBE_SCREEN_W, VIBE_SCREEN_H, UI_K);
+    hm_text(240 - 13 * 12, 14, "ARCTIC SCREAM", 3, UI_W);
+    for (i = 0; i < 4; i++) hm_rect(60 + i * 92, 44, 84, 3, UI_ACCENTS[i]);
+    for (i = 0; i < 7; i++) {
+        hm_rect(24, 60 + i * 30, 432, 26, UI_D0);
+        hm_text(32, 65 + i * 30, L[i][0], 2, UI_KC[i & 3]);
+        hm_text(208, 69 + i * 30, L[i][1], 1, UI_L0);
+    }
+    hm_text(240 - 23 * 8, 296, "PRESS ANYTHING TO BEGIN", 2, (fm1_ms / 600u) & 1u ? UI_W : UI_M0);
+}
+
 static void vp_fm1_2x(uint16_t *vfb)            /* the FM-1's screen twice its size, its middle 320 rows: the boot screen's
                                                  * glitching title and GUOVSSAHAS's northern lights fill the display */
 {
@@ -310,48 +333,73 @@ static void vp_draw(uint16_t *vfb)
         vp_fm1_2x(vfb);
         return;
     }
+    if (vp_page != VP_FM && !sl_rec && wl_state == WL_IDLE && fm1_ms - vp_touch_t > 8000u)
+        vp_page = VP_FM;                        /* (sound in's pages untouched 8 s: back to the whole display; not while
+                                                 * it records or loads) */
+    if (vp_welcome && fm1_ms - ui_boot_t > UI_BOOT_MS + 30000u) vp_welcome = 0;   /* (the welcome card: 30 s at most) */
+    if (vp_welcome) { vp_welcome_card(vfb); return; }
     if (vp_page == VP_FM && page == PG_HOME) vp_home_full(vfb);   /* HOME: drawn again, the whole display */
     else if (vp_page == VP_FM) vp_fm1_full(vfb);   /* the FM-1's other pages: its screen, full height */
-    else {                                      /* sound in's pages: the FM-1's screen left, the page right */
-        vg_text("ARCTIC SCREAM", 10, 8, VG_BOLD, 0xE6EAF2, VG_LEFT);
-        vg_text(VP_PAGE_N[vp_page], 468, 8, VG_BOLD, 0xff1a8c, VG_RIGHT);
-        for (y = 0; y < 240u; y++) {
-            uint16_t *row = vfb + (36u + y) * VIBE_SCREEN_W;
+    else {                                      /* sound in's pages: the FM-1's screen left, the page right, in its look
+                                                 * (the pixfont, the slabs: port/home.c's hm_*) */
+        static const char *const TITLE[5] = {"", "SOUND IN", "THE VOICE", "WHERE IT GOES", "LONG SAMPLES"};
+        uint16_t acc = BW_MAGENTA;
+        hm_fb = vfb;
+        hm_rect(0, 0, VIBE_SCREEN_W, VIBE_SCREEN_H, UI_K);
+        hm_rect(0, 0, 16 * (int)strlen(VP_PAGE_N[vp_page]) + 12, 22, acc);   /* the header, as HOME's */
+        hm_text(6, 3, VP_PAGE_N[vp_page], 2, UI_K);
+        hm_rect(16 * (int)strlen(VP_PAGE_N[vp_page]) + 14, 0, VIBE_SCREEN_W, 22, UI_D0);
+        hm_text(16 * (int)strlen(VP_PAGE_N[vp_page]) + 22, 3, TITLE[vp_page], 2, UI_W);
+        for (y = 0; y < 240u; y++) {            /* the FM-1's screen, as it is, on the left */
+            uint16_t *row = vfb + (30u + y) * VIBE_SCREEN_W;
             const uint16_t *src = fb + y * 240u;
             for (x = 0; x < 240u; x++) row[x] = src[x];
         }
-        for (i = 0; i < 4; i++) {
-            int p = VP_PAGE_P[vp_page][i], cy = 40 + i * (vp_page == VP_SAMPLE ? 30 : 52);
+        hm_text(0, 278, "IN", 2, li_live && lv.on ? BW_GREEN : UI_M0);   /* the input's level, under it */
+        hm_rect(40, 282, 200, 8, UI_D0);
+        hm_rect(40, 282, (int)(200.0f * vd_clamp(lv_env * 4.0f, 0.0f, 1.0f)), 8, li_live && lv.on ? BW_GREEN : UI_M0);
+        for (i = 0; i < 4; i++) {               /* the four values: slabs, as HOME's knobs */
+            int p = VP_PAGE_P[vp_page][i], h = vp_page == VP_SAMPLE ? 40 : 58, cy = 30 + i * (h + 2), j, f;
             if (p < 0) continue;
-            vg_text(PARAMS[p].name, 252, cy, VG_SMALL, 0x8A93A6, VG_LEFT);
+            hm_rect(246, cy, 232, h, UI_D0);
+            hm_rect(246, cy, 232, 2, UI_KC[i]);
             vp_text_value(p, b);
-            vg_text(b, 470, cy, VG_MED, 0xE6EAF2, VG_RIGHT);
-            if (vp_page != VP_SAMPLE)
-                vg_rect(252, cy + 34, (int)(218.0f * (vibe_param_get(p) - PARAMS[p].min) / (PARAMS[p].max - PARAMS[p].min)), 3, 0xff1a8c);
+            for (j = 0; b[j]; j++) if (b[j] >= 'a' && b[j] <= 'z') b[j] = (char)(b[j] - 32);
+            {
+                char nm[24];
+                for (j = 0; PARAMS[p].name[j] && j < 23; j++)
+                    nm[j] = PARAMS[p].name[j] >= 'a' && PARAMS[p].name[j] <= 'z' ? (char)(PARAMS[p].name[j] - 32) : PARAMS[p].name[j];
+                nm[j] = 0;
+                hm_text(252, cy + 6, nm, 1, UI_L0);
+            }
+            hm_text(252, cy + (vp_page == VP_SAMPLE ? 18 : 18), b, 2, UI_KC[i]);
+            if (vp_page != VP_SAMPLE) {         /* (8 segments, as the slabs') */
+                f = (int)(8.0f * (vibe_param_get(p) - PARAMS[p].min) / (PARAMS[p].max - PARAMS[p].min) + 0.5f);
+                for (j = 0; j < 8; j++) hm_rect(252 + j * 27, cy + 42, 24, 9, j < f ? UI_KC[i] : UI_K);
+            }
         }
         if (vp_page == VP_SAMPLE) {             /* the media's list (DATA, ENTER), what happens */
             int n = ml_n;
+            char line[28];
             if (ml_sel < ml_top) ml_top = ml_sel;
-            if (ml_sel >= ml_top + 5) ml_top = ml_sel - 4;
-            vg_text(ml_none ? "NO MEDIA HERE" : ml_cur[0] ? ml_cur : "SOURCES", 252, 104, VG_SMALL, 0x5B6577, VG_LEFT);
-            for (i = ml_top; i < n && i < ml_top + 5; i++) {
-                int yy = 124 + (i - ml_top) * 24;
-                const char *l = ml_lines[i];
-                if (i == ml_sel) vg_round(248, yy - 2, 226, 22, 4, 0x24314A);
-                vg_text(ml_cur[0] ? ml_field(l, 2) : ml_field(l, 2)[0] ? ml_field(l, 2) : l, 254, yy, VG_SMALL,
-                        ml_cur[0] && l[0] == 'd' ? 0x22d3ee : 0xE6EAF2, VG_LEFT);
+            if (ml_sel >= ml_top + 7) ml_top = ml_sel - 6;
+            hm_text(246, 116, ml_none ? "NO MEDIA HERE" : ml_cur[0] ? "FILES" : "SOURCES", 1, UI_M0);
+            for (i = ml_top; i < n && i < ml_top + 7; i++) {
+                int yy = 130 + (i - ml_top) * 18, j;
+                const char *l = ml_lines[i], *t = ml_cur[0] ? ml_field(l, 2) : ml_field(l, 2)[0] ? ml_field(l, 2) : l;
+                for (j = 0; t[j] && j < 27; j++) line[j] = t[j] >= 32 && t[j] < 127 ? t[j] : '?';
+                line[j] = 0;
+                if (i == ml_sel) hm_rect(246, yy - 3, 232, 16, UI_D0);
+                hm_text(250, yy, line, 1, ml_cur[0] && l[0] == 'd' ? BW_CYAN : i == ml_sel ? UI_W : UI_L0);
             }
             if (sl_rec) {
-                vg_round(248, 250, 226, 24, 4, 0xff1a8c);
-                vg_text("REC", 256, 254, VG_BOLD, 0x05080d, VG_LEFT);
-                vg_ftoa((float)sl_n / 22050.0f, 1, b), vp_cat(b, sl_n >= SL_MAX ? " S  FULL" : " S");
-                vg_text(b, 466, 254, VG_BOLD, 0x05080d, VG_RIGHT);
+                hm_rect(246, 262, 232, 24, acc);
+                hm_text(252, 266, "REC", 2, UI_K);
+                vg_ftoa((float)sl_n / 22050.0f, 1, b), vp_cat(b, sl_n >= SL_MAX ? "S FULL" : "S");
+                hm_text(472 - 16 * (int)strlen(b), 266, b, 2, UI_K);
             } else
-                vg_text(wl_state != WL_IDLE ? "LOADING" : wl_msg[0] ? wl_msg : "REC: RECORD  ENTER: LOAD", 252, 254,
-                        VG_SMALL, wl_err ? 0xff1a8c : 0x8A93A6, VG_LEFT);
-        } else {
-            vg_rect(252, 262, 218, 6, 0x1a2230);
-            vg_rect(252, 262, (int)(218.0f * vd_clamp(lv_env * 4.0f, 0.0f, 1.0f)), 6, li_live && lv.on ? 0x3fb950 : 0x404850);
+                hm_text(246, 270, wl_state != WL_IDLE ? "LOADING" : wl_msg[0] ? wl_msg : "REC RECORDS, ENTER LOADS", 1,
+                        wl_err ? acc : UI_M0);
         }
     }
     if (vp_shift || fm1_ms - vp_f_t < 2000u) {  /* the soft keys' captions: only while SHIFT is held, or a moment after

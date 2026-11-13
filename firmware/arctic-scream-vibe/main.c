@@ -93,6 +93,7 @@ void vibe_on_init(float sample_rate)
     {
         int fresh = vb_set_len < 0;             /* (no settings kept: a first start) */
         app_start();
+        if (fresh) vp_welcome = 1;              /* (and the welcome card after the boot screen) */
         if (fresh) sy_scr = set.scr = NSCR - 1u;   /* (the VIBE's first start: SCREEN OFF is GUOVSSAHAS, the northern
                                                  * lights after 2 min untouched; SYSTEM changes it as on the FM-1) */
     }
@@ -114,6 +115,7 @@ void vibe_on_event(const vibe_event *e)
         static uint8_t ch_of[128], key_of[128];
         uint32_t v = (uint32_t)(e->value * 127.0f + 0.5f), n = (uint32_t)e->id & 127u, c;
         int32_t k = (int32_t)n - (int32_t)KEY0 - 12 * set.oct;
+        vp_touch_t = fm1_ms, vp_welcome = 0;    /* (a note: the hands are here; the welcome card away) */
         if (e->down) {
             key_of[n] = 0;
             if (e->midi[1] == VIBE_NOTE_KEYS && k >= 0 && k < 27) {

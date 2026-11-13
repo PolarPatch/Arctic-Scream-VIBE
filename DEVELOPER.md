@@ -137,8 +137,8 @@ stay one engine. Fixes to the engine are made in `arctic-drones` first.
 - **From ZEN-1 (2026-11-13):** the Arctic that plays (the aurora, the ice and the snow on the display make the notes;
   the keys reach into the picture) and the ice that answers your notes. Engine ideas, written up in arctic-drones'
   DEVELOPER.md ("What ZEN-1 showed"); the VIBE's display and stage are where they would shine. Waiting.
-- **The split screen:** back to full screen by itself after ~8 s untouched; the right half in the FM-1's pixel look; the
-  left half the tracks alone, full height.
+- **The split screen:** back to full screen after 8 s untouched and the right half in the FM-1's pixel look: done in
+  2.1. Still waiting: the left half the tracks alone, full height.
 
 ## Log
 
