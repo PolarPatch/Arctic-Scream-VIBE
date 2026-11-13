@@ -35,15 +35,16 @@ static uint32_t hm_888(uint16_t c)              /* RGB565 -> 0xRRGGBB (for vg_li
 }
 
 static int hm_card_top, hm_card_bot;
+static uint32_t hm_pic, hm_dim;                 /* (2.1) the picture hm_card_row draws; dimmed (SKY) */
 static void hm_card_row(uint32_t y, const uint8_t *cells)   /* (2.1) a row of the sound's picture: 4 x 4 pixels a cell,
                                                  * 464 wide; its middle rows in the field, the rest cut */
 {
-    const uint16_t *pal = PIC_PAL[pc_id % NPIC];
+    const uint16_t *pal = PIC_PAL[hm_pic % NPIC];
     int yy = (hm_card_top + hm_card_bot) / 2 - (int)PIC_H * 2 + (int)y * 4, x;
     if (yy + 4 <= hm_card_top || yy >= hm_card_bot) return;
     for (x = 0; x < (int)PIC_W; x++) {
         int y0 = yy < hm_card_top ? hm_card_top : yy, y1 = yy + 4 > hm_card_bot ? hm_card_bot : yy + 4;
-        hm_rect(8 + x * 4, y0, 4, y1 - y0, pal[cells[x]]);
+        hm_rect(8 + x * 4, y0, 4, y1 - y0, hm_dim ? ui_mix(UI_K, pal[cells[x]], 7, 16) : pal[cells[x]]);
     }
 }
 
@@ -55,6 +56,11 @@ static void vp_home_full(uint16_t *vfb)
     hm_fb = vfb;
     hm_rect(0, 0, VIBE_SCREEN_W, VIBE_SCREEN_H, UI_K);
     if (!sk_ok) sk_init();
+    if (pc_mode == PC_SKY) {                    /* (2.1) SKY: the selected track's sound's picture, dimmed */
+        hm_card_top = top, hm_card_bot = bot, hm_pic = pic_of_track(sel), hm_dim = 1;
+        pic_rows(hm_pic, hm_card_row);
+        hm_dim = 0;
+    } else
     for (i = 0; i < (int)NSTAR; i++) {          /* the sky: ui.c's stars, spread over the whole width (twice: the left
                                                  * half and, mirrored, the right) */
         uint16_t c = sk_col((uint32_t)i);
@@ -87,7 +93,7 @@ static void vp_home_full(uint16_t *vfb)
         hm_rect(x1 - 13, y1 - 2, 14, 3, ui_acc), hm_rect(x1 - 2, y1 - 13, 3, 14, ui_acc);
     }
     if (pic_card_on()) {                        /* (2.1) PRESETS turned: the sound's picture, big, its name on it */
-        hm_card_top = top, hm_card_bot = bot;
+        hm_card_top = top, hm_card_bot = bot, hm_pic = pc_id, hm_dim = 0;
         pic_rows(pc_id, hm_card_row);
         hm_rect(10, top + 6, 16 * (int)strlen(pc_name) + 12, 22, UI_K);
         hm_text(16, top + 9, pc_name, 2, UI_W);
