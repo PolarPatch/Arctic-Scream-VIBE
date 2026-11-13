@@ -196,6 +196,17 @@ static void vp_leds(void)                       /* the pads' lights: the tracks,
         vibe_led_pad(p, c, l);
     }
     for (p = 0; p < 6; p++) vibe_led_button(VB_K1 + p, 0xa78bfa, dm_shown == p ? 1.0f : 0.15f);   /* (the demo playing) */
+    {                                           /* the keys' names (vibe_label: the plugin prints them on the keys, the
+                                                 * emulator under its big display); F1..F6 SHIFT's while it is held */
+        static const char *const PG[6] = {"SOUND", "ENV", "LFO", "ARP", "FX", "SEQ"};
+        static const char *const SH[6] = {"SEL", "GLOBAL", "SAVE", "IN", "VOICE", "ROUTE"};
+        static int was = -1;
+        if (was != (int)vp_shift) {
+            was = (int)vp_shift;
+            for (p = 0; p < 6; p++) vibe_label(VB_F1 + p, vp_shift ? SH[p] : PG[p]);
+            for (p = 0; p < 6 && p < (int)DM_N; p++) vibe_label(VB_K1 + p, DEMOS[p].id);
+        }
+    }
 }
 
 static const char *const VP_HELP[] = {
