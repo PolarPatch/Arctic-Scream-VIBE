@@ -4,6 +4,8 @@
 (VST3 / AU / CLAP through VIBE FM VST), a page in your browser (the Playground) and an instrument on the VIBE FM
 hardware. Built with the VIBE FM SDK.
 
+![Arctic Scream VIBE in the VIBE FM SDK's emulator: HOME's four tracks on the display, the demos A1 to A6 on the six keys](docs/arctic-scream-vibe-emulator.png)
+
 It is [Arctic Scream](https://github.com/PolarPatch/Arctic-scream-FM-1) for the M-VAVE FM-1, the same engine and the
 same version (2.0), with what the FM-1 cannot do:
 
