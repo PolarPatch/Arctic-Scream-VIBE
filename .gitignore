@@ -6,3 +6,4 @@ tests/media/
 .DS_Store
 tests/teaser/out/
 tests/teaser/assets/
+tests/voice.wav

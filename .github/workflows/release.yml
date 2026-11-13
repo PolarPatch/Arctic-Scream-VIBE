@@ -1,0 +1,36 @@
+# Arctic Scream VIBE's releases: a tag (v2.0, ...) is built with the VIBE FM SDK (tools/get_sdk.sh: its pinned commit),
+# checked (vibe-check must pass) and released on GitHub with its .wasm and its .zip (the plugin's package, the icon in
+# it). Never add or replace a release's files by hand afterwards.
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: the SDK, at its pinned commit
+        run: sh tools/get_sdk.sh
+      - name: build and check
+        run: ZIG=zig sh tools/build.sh
+      - name: the version is the tag's
+        run: |
+          v=$(node -e 'console.log(require("./firmware/arctic-scream-vibe/firmware.json").version)')
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "firmware.json says $v, the tag $GITHUB_REF_NAME"; exit 1; }
+      - name: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp sdk/build/arctic-scream-vibe.wasm sdk/build/arctic-scream-vibe.zip .
+          sha256sum arctic-scream-vibe.wasm arctic-scream-vibe.zip > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" arctic-scream-vibe.wasm arctic-scream-vibe.zip SHA256SUMS \
+            --title "Arctic Scream VIBE ${GITHUB_REF_NAME#v}" --generate-notes

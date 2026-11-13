@@ -15,6 +15,8 @@ if [ -d "$E" ]; then mkdir -p ~/.Trash && mv "$E" ~/.Trash/engine-$(date +%Y%m%d
 mkdir -p "$E"
 cp "$AD"/firmware/src/*.c "$AD"/firmware/src/*.h "$E"/ 2>/dev/null || cp "$AD"/firmware/src/*.c "$E"/
 cp "$AD"/firmware/gen/*.h "$E"/
+cp "$AD"/LICENSING.md "$E"/LICENSING.md         # (who made what in the engine: its credits and licences travel with it)
+mkdir -p "$E"/LICENSES && cp "$AD"/LICENSES/*.txt "$E"/LICENSES/
 REV=$(git -C "$AD" rev-parse --short HEAD)
 DIRTY=$(git -C "$AD" status --porcelain -- firmware/src firmware/gen | head -1)
 {
