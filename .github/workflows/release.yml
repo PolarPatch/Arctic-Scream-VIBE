@@ -5,13 +5,22 @@ name: release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:                            # (a tag whose push started nothing: built from that tag, by hand)
+    inputs:
+      tag:
+        description: the tag to build and release (v2.0, ...)
+        required: true
 permissions:
   contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: mlugg/setup-zig@v1
         with:
           version: 0.13.0
@@ -25,12 +34,12 @@ jobs:
       - name: the version is the tag's
         run: |
           v=$(node -e 'console.log(require("./firmware/arctic-scream-vibe/firmware.json").version)')
-          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "firmware.json says $v, the tag $GITHUB_REF_NAME"; exit 1; }
+          [ "v$v" = "$TAG" ] || { echo "firmware.json says $v, the tag $TAG"; exit 1; }
       - name: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp sdk/build/arctic-scream-vibe.wasm sdk/build/arctic-scream-vibe.zip .
           sha256sum arctic-scream-vibe.wasm arctic-scream-vibe.zip > SHA256SUMS
-          gh release create "$GITHUB_REF_NAME" arctic-scream-vibe.wasm arctic-scream-vibe.zip SHA256SUMS \
-            --title "Arctic Scream VIBE ${GITHUB_REF_NAME#v}" --generate-notes
+          gh release create "$TAG" arctic-scream-vibe.wasm arctic-scream-vibe.zip SHA256SUMS \
+            --verify-tag --title "Arctic Scream VIBE ${TAG#v}" --generate-notes
