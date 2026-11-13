@@ -21,7 +21,7 @@ static void dm_step(void)                       /* (each millisecond of the engi
     if (dm_cur < 0) return;
     if (dm_up) {
         if (fm1_ms < dm_up) return;
-        vb_keys(vp_fkeys), dm_up = 0, dm_next = fm1_ms + 60u;   /* (the keys up: the pads' own again) */
+        vb_keys(vp_fkeys | vp_kkeys), dm_up = 0, dm_next = fm1_ms + 60u;   /* (the keys up: the pads' own again) */
         return;
     }
     if (fm1_ms < dm_next || vb_sx_in_ready) return;   /* (the last frame not taken yet) */
@@ -38,7 +38,7 @@ static void dm_step(void)                       /* (each millisecond of the engi
         dm_pos += 1u;
         break;
     case DA_KEYS:
-        vb_keys(vp_fkeys | ((uint32_t)a[1] | (uint32_t)a[2] << 8 | (uint32_t)a[3] << 16 | (uint32_t)a[4] << 24));
+        vb_keys(vp_fkeys | vp_kkeys | ((uint32_t)a[1] | (uint32_t)a[2] << 8 | (uint32_t)a[3] << 16 | (uint32_t)a[4] << 24));
         dm_up = fm1_ms + 120u;
         dm_pos += 5u;
         break;

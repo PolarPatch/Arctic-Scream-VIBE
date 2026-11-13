@@ -23,7 +23,7 @@
 enum { VP_FM, VP_IN, VP_VOICE, VP_ROUTE, VP_SAMPLE };   /* the FM-1's pages / sound in's: IN, VOICE, ROUTE, SAMPLE (F4 twice) */
 static int vp_page = VP_FM, vp_help;
 static uint32_t vp_btn;                         /* the FM-1 buttons the VIBE holds (BTN_ ids) */
-static uint32_t vp_fkeys;                       /* the FM-1 keys the pads hold (bit = key) */
+static uint32_t vp_fkeys, vp_kkeys;             /* the FM-1 keys the pads hold, the VIBE's keys hold (bit = key) */
 static int8_t vp_padkey[16];
 #include "demo.c"                               /* the demos on K1..K6 */                    /* a held pad's FM-1 key (-1: a direct function, none) */
 static uint32_t vp_stop_seq;                   /* (STOP pressed to stop the sequencer: its let go too) */
@@ -49,7 +49,7 @@ static void vp_set_btn(int b, int down)
 static void vp_pad(int p, int down)             /* pad p (0..15) pressed / let go */
 {
     if (!down) {
-        if (vp_padkey[p] >= 0) vp_fkeys &= ~(1u << vp_padkey[p]), vb_keys(vp_fkeys);
+        if (vp_padkey[p] >= 0) vp_fkeys &= ~(1u << vp_padkey[p]), vb_keys(vp_fkeys | vp_kkeys);
         vp_padkey[p] = -1;
         return;
     }
@@ -57,7 +57,7 @@ static void vp_pad(int p, int down)             /* pad p (0..15) pressed / let g
         int k = p < 8 ? WK[p] : (vp_btn >> BTN_FX & 1u) ? BK[p - 8] : WK2[p - 8];
         vp_padkey[p] = (int8_t)k;
         vp_fkeys |= 1u << k;
-        vb_keys(vp_fkeys);
+        vb_keys(vp_fkeys | vp_kkeys);
         return;
     }
     vp_padkey[p] = -1;
@@ -126,7 +126,12 @@ static void vp_event(const vibe_event *e)
                 }
             }
         }
-        else if (b == VB_RETURN) { vp_set_btn(BTN_HOME, e->down); if (e->down) vp_page = VP_FM; }
+        else if (b == VB_RETURN) {              /* RETURN: from sound in's pages back to the FM-1's; there, its HOME */
+            static int ret_home;
+            if (e->down && vp_page != VP_FM) vp_page = VP_FM, ret_home = 0;
+            else if (e->down) ret_home = 1, vp_set_btn(BTN_HOME, 1);
+            else if (ret_home) ret_home = 0, vp_set_btn(BTN_HOME, 0);
+        }
         else if (b == VB_PLAY) vp_set_btn(BTN_PLAY, e->down);
         else if (b == VB_STOP) {                /* STOP: the sequencer, if it plays; else the track's sound (its
                                                  * latched notes, its GENERATE) let go; SHIFT + STOP: all four */

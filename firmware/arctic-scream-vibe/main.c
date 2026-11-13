@@ -101,16 +101,30 @@ void vibe_on_event(const vibe_event *e)
         if (e->id == VIBE_MEDIA_EV_SOURCES && !ml_cur[0]) ml_want = 1;
         sl_work((uint32_t)vibe_param_get(P_SLOT));
     }   /* (the host keeps our state now: a DAW saving its project) */
-    else if (e->type == VIBE_EV_NOTE) {         /* a note: the VIBE's keys and pads on the selected track's MIDI
-                                                 * channel (MIDI CHANNEL's T1 .. T4, or any for ALL > SEL), MIDI and the
-                                                 * DAW's on their own (as on the FM-1's USB); an off where its on went */
-        static uint8_t ch_of[128];
+    else if (e->type == VIBE_EV_NOTE) {         /* a note. The VIBE's keys: where the FM-1 has that key (F2 + 12 x OCT ..
+                                                 * 26 keys up), as its key (REC into the sequence, LATCH per key, the key
+                                                 * combinations, as on the FM-1); above it, and its pads, on the selected
+                                                 * track's MIDI channel; MIDI and the DAW's on their own channel. An off
+                                                 * goes where its on went */
+        static uint8_t ch_of[128], key_of[128];
         uint32_t v = (uint32_t)(e->value * 127.0f + 0.5f), n = (uint32_t)e->id & 127u, c;
+        int32_t k = (int32_t)n - (int32_t)KEY0 - 12 * set.oct;
         if (e->down) {
+            key_of[n] = 0;
+            if (e->midi[1] == VIBE_NOTE_KEYS && k >= 0 && k < 27) {
+                key_of[n] = (uint8_t)(k + 1);
+                vp_kkeys |= 1u << k, vb_keys(vp_fkeys | vp_kkeys);
+                return;
+            }
             c = e->midi[1] == VIBE_NOTE_KEYS || e->midi[1] == VIBE_NOTE_PADS ? out_ch(sel) : (uint32_t)e->midi[0] & 15u;
             ch_of[n] = (uint8_t)c;
-        } else
+        } else {
+            if (key_of[n]) {
+                vp_kkeys &= ~(1u << (key_of[n] - 1u)), key_of[n] = 0, vb_keys(vp_fkeys | vp_kkeys);
+                return;
+            }
             c = ch_of[n];
+        }
         vb_midi((e->down ? 0x90u : 0x80u) | c, n, e->down ? (v ? v : 1u) : 0u);
     } else
         vp_event(e);

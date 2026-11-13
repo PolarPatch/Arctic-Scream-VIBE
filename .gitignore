@@ -4,3 +4,4 @@ tests/out/
 tests/store/
 tests/media/
 .DS_Store
+tests/teaser/out/
