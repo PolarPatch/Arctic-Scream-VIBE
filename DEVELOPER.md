@@ -137,10 +137,14 @@ stay one engine. Fixes to the engine are made in `arctic-drones` first.
 - **From ZEN-1 (2026-11-13):** the Arctic that plays (the aurora, the ice and the snow on the display make the notes;
   the keys reach into the picture) and the ice that answers your notes. Engine ideas, written up in arctic-drones'
   DEVELOPER.md ("What ZEN-1 showed"); the VIBE's display and stage are where they would shine. Waiting.
-- **The split screen:** back to full screen by itself after ~8 s untouched; the right half in the FM-1's pixel look; the
-  left half the tracks alone, full height.
+- **The split screen:** back to full screen after 8 s untouched and the right half in the FM-1's pixel look: done in
+  2.1. Still waiting: the left half the tracks alone, full height.
 
 ## Log
 
+- 2026-11-13 (night): branch `feature/2.2`, the engine of arctic-drones' `feature/2.2`: the pictures move (the big
+  card and SKY through the engine's `pic_anim_rows`, `port/home.c`), JAHKI (LFO's fifth page: the Sami year's eight
+  seasons leaning the sound), the ice holding its breath, JIEHKKI's dusk and START ALWAYS. The keys' lights are the
+  FM-1's (the VIBE's pads keep their own). `vibe-check` passes.
 - 2026-11-13: started. The folder, these notes, the SDK cloned at 86d02ca. The GitHub repo
   `PolarPatch/Arctic-Scream-VIBE` to be created private, made public for the release.
