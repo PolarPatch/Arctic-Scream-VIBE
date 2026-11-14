@@ -24,11 +24,13 @@ same version (2.0), with what the FM-1 cannot do:
 - **The DAW**: the input's and the VOICE's settings are automatable parameters; the projects, settings and samples are
   saved in the DAW's project.
 
-Coming with 2.2 (on the branch `feature/2.2`, not released yet): the pictures move (the aurora breathes, snow drifts,
-water glitters), **JAHKI** (press LFO five times: the Arctic's year turning under the music through the eight Sami
-seasons), the ice holding its breath, JIEHKKI's dusk and START ALWAYS.
+New in 2.1 (as Arctic Scream 2.1 on the FM-1): **Jiekna**, the singing ice, a tenth sound source; **JAHKI** (press
+LFO five times: the Arctic's year turning under the music through the eight Sami seasons); **ENV 2** (LOOP, ONSET,
+SPREAD, DETUNE); the LFO's **CHAOS**; **MOTION** (hold REC, turn an encoder: the move recorded and looped); **SWELL**
+(hold FX, pad 9); JIEHKKI up to 8 hours with START ALWAYS, its dusk, a MOTIF of its own and its notes out over MIDI;
+the ice answering and holding its breath; a moving picture for every sound; EVOLVE; SYSTEM 4's SOUND and HELP.
 
-Everything else is Arctic Scream 2.0: nine sound sources (Holvut, Biegga and the rest), 38 factory sounds, JIEHKKI (a
+Everything else is as Arctic Scream 2.0: the sound sources (Holvut, Biegga and the rest), 38 factory sounds, JIEHKKI (a
 piece that plays itself), RUOHČAT, ŠUOKŊA's pure tunings, DICE, ACCIDENT, GENERATE, the sequencer and the effects. Its
 manual: <https://github.com/PolarPatch/Arctic-scream-FM-1/blob/main/MANUAL.md>.
 
