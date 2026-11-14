@@ -11,7 +11,8 @@
  *   YEAR       STILL, 8, 24 MIN, 1, 2, 8, 24 HOURS: a whole year's time (STILL: SEASON stays)
  *   SEASON     where the year is now; turned, the year is there (it goes on from it)
  *   DEPTH      0 .. 100 %: how far the seasons lean the sound (0: not at all, the year only turns)
- *   SKY        OFF, ON: HOME's sky the season's picture and its name (pictures.c), whatever PICTURE says
+ *   SKY        OFF, ON: the screensaver (SCREEN OFF's GOVVA, GUOVSSAHAS) the season's picture (ui.c's ui_govva), as
+ *              with DEPTH up (yr_on); HOME keeps its stars
  * What leans: the tracks' filters (with JIEHKKI's moves, jiehkki.c's jk_glide), SPACE's SIZE (hall.c's rv_lean: SIZE
  * as set, its tail longer or shorter), SHIMMER (rv_shq: as set, more or less of it; 0 stays 0). Between two seasons,
  * between their leans. Never the knobs or the project: a year at DEPTH 0 is the sound as it was. The project keeps
@@ -43,6 +44,7 @@ static void yr_at(uint32_t pos8)                /* (store.c) a project loaded: t
 }
 static uint32_t yr_pos8(void) { return yr_kept; }   /* (store.c) where the project keeps it */
 static void yr_keep(void) { yr_kept = yr_ph >> 24; }   /* (store.c's autosave, saving anyway) where it is now */
+static int yr_on(void) { return yr_depth > 0 || yr_sky; }   /* (2.2) in use (the screensavers show its seasons) */
 
 static void yr_tick(uint32_t now)               /* the year on; the leans from where it is */
 {
@@ -54,6 +56,14 @@ static void yr_tick(uint32_t now)               /* the year on; the leans from w
     if (L && dt < 1000u) yr_ph += (uint32_t)((uint64_t)dt * 0x100000000ull / L);
     s = yr_ph >> 29, n = (s + 1u) % YR_NS, f = yr_ph >> 21 & 255u;   /* (this season, the next, how far: 0 .. 255) */
     yr_season = (int32_t)s, yr_seen = s;
+    {                                           /* (2.2, after HADAL-1's scene CC: written anew) MOD OUT on: the season
+                                                 * out as CC 104 on T1's channel (DALVI 0 .. CAKCADALVI 112, 16 apart),
+                                                 * when it turns (and as MOD OUT comes on) */
+        static uint32_t sent = 0xFFu;
+        if (!set.mod) sent = 0xFFu;
+        else if (s != sent && midi_room())
+            midi_send(0xB0u | (set.mch < MCH_ALL ? set.mch : 0u), 104u, s * 16u), sent = s;
+    }
     d = (uint32_t)clamp(yr_depth, 0, 100);
     c = YR_LEAN[s][0] * 256 + (YR_LEAN[n][0] - YR_LEAN[s][0]) * (int32_t)f;   /* (Q8, between the two) */
     z = YR_LEAN[s][1] * 256 + (YR_LEAN[n][1] - YR_LEAN[s][1]) * (int32_t)f;

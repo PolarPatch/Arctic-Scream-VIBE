@@ -235,7 +235,10 @@ static const char *const VP_HELP[] = {
     "PADS 9..16", "DICE: a new part in a mood (PLAY runs it)",
     "STOP", "the sequencer; or the track's sound off (SHIFT: all)",
     "< >", "UNDO / REDO",
-    "RETURN", "the start page",
+    "REC HELD + ENC", "MOTION: the knob's move recorded, then looped",
+    "FX HELD + PAD 9", "SWELL: the sound rises; let go, it falls",
+    "ENV AGAIN", "ENV 2: LOOP, ONSET, SPREAD, DETUNE",
+    "RETURN", "the start page (held: SYSTEM, again: 2, 3, 4)",
 };
 
 static void vp_cat(char *d, const char *s) { while (*d) d++; while ((*d++ = *s++) != 0) ; }
