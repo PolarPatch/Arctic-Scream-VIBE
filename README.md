@@ -38,8 +38,9 @@ manual: <https://github.com/PolarPatch/Arctic-scream-FM-1/blob/main/MANUAL.md>.
 
 ## Play it
 
-- **In the browser:** open the Playground, <https://play.thefirmwarehub.com/>, and drop `arctic-scream-vibe.wasm` from
-  the [releases](../../releases) onto the device.
+- **In the browser:** **[play it in the VIBE FM web player](https://play.thefirmwarehub.com/?fw=arctic-scream-vibe)**.
+  Or open the Playground, <https://play.thefirmwarehub.com/>, and drop `arctic-scream-vibe.wasm` from the
+  [releases](../../releases) onto the device.
 - **In your DAW:** drop `arctic-scream-vibe.zip` onto the VIBE FM VST window (<https://thefirmwarehub.com/convert/#plugdl>).
 - **On the VIBE FM:** from The Firmware Hub.
 
