@@ -8,18 +8,26 @@
  *   DROP    a WAV let go on the plugin's window (SDK 14): onto pads 5..8 its slot, else the SAMPLE page's
  * A slot is written as samples.c's upload writes it (samples.c: the "GSMP" header, IMA ADPCM from predictor 0, the
  * header last), then samples.c checks and indexes it as any slot. The encoder is the standard IMA ADPCM choice
- * (tools/sampleio.py ima_encode, look=False). Never from vibe_on_audio. */
+ * (tools/sampleio.py ima_encode, look=False). Two flows: the control flow encodes a slot whole into sl_img, the sound's
+ * flow copies it into the slot a piece a block (sl_commit_step) and looks at it, as the engine owns the slots; REC
+ * records in the sound's flow and hands the take over by a count. */
 
 #define SL_MAX SMP_MAX_N                        /* a slot's samples at 22050 Hz (~95 s) */
-static int16_t sl_buf[SL_MAX];                  /* a recording or a file, before it is encoded (shared: one at a time) */
-static uint32_t sl_n;
+static int16_t sl_buf[SL_MAX];                  /* a recording or a file, before it is encoded (one at a time: REC fills it
+                                                 * in the sound's flow, LOAD in the control flow, never both) */
+static uint32_t sl_n;                           /* (REC's: the sound's flow) */
+static uint8_t sl_img[SMP_SLOT_SIZE];           /* a slot encoded, waiting to be copied in */
+static volatile uint32_t sl_cm_n, sl_cm_k, sl_cm_done;   /* (control: a slot asked for, which; sound: copied) */
 
 static uint32_t sl_wr16(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); return 2u; }
 static uint32_t sl_wr32(uint8_t *p, uint32_t v) { sl_wr16(p, v); sl_wr16(p + 2, v >> 16); return 4u; }
 
-static void sl_write(uint32_t k, const char *name, const int16_t *x, uint32_t n)   /* slot k := x (n samples) */
+static int sl_busy(void) { return sl_cm_n != sl_cm_done; }   /* (control) a slot still being copied in */
+
+static void sl_write(uint32_t k, const char *name, const int16_t *x, uint32_t n)   /* (control) slot k := x (n samples):
+                                                 * encoded into sl_img, then copied in by the sound's flow */
 {
-    uint8_t *h = fake_flash + k * SMP_SLOT_SIZE, *d = h + SMP_DATA_OFF;
+    uint8_t *h = sl_img, *d = h + SMP_DATA_OFF;
     int32_t pred = 0, idx = 0, peak = 1;
     uint32_t i, len;
     int64_t g;
@@ -27,7 +35,6 @@ static void sl_write(uint32_t k, const char *name, const int16_t *x, uint32_t n)
     for (i = 0; i < n; i++) { int32_t a = x[i] < 0 ? -x[i] : x[i]; if (a > peak) peak = a; }
     g = (int64_t)29204 * 65536 / peak;          /* (to -1 dBFS: as loud as a slot can be) */
     memset(h, 0xFF, SMP_SLOT_SIZE);
-    smp[k].ready = 0, smp[k].state = SS_EMPTY;
     for (i = 0; i < n; i++) {                   /* IMA ADPCM, 4 bit, low nibble first */
         int32_t s = (int32_t)(x[i] * g >> 16), step = IMA_STEP[idx], diff = s - pred, vd = step >> 3, code = 0;
         if (diff < 0) code = 8, diff = -diff;
@@ -51,15 +58,40 @@ static void sl_write(uint32_t k, const char *name, const int16_t *x, uint32_t n)
     sl_wr32(h + 16, len), sl_wr32(h + 20, ~smp_crc(0xFFFFFFFFu, d, len));
     sl_wr32(h + 32, 0), sl_wr32(h + 36, n), sl_wr32(h + 40, 0), sl_wr32(h + 44, n - 1u), sl_wr32(h + 48, SMP_RATE_Q16);
     sl_wr16(h + 52, 60u * 16u), sl_wr16(h + 54, 0), h[56] = 0, h[57] = 0, h[58] = 127, h[59] = 0;
-    smp_look(k);                                /* (samples.c checks and indexes it, then it plays) */
-    vb_dirty |= VD_SLOT0 << k;
+    sl_cm_k = k;
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    sl_cm_n++;                                  /* (the sound's flow: sl_commit_step) */
 }
 
-/* ---- REC: live_in.c hands each engine frame (44.1 kHz) to sl_rec_put while recording; two make one slot sample */
-static volatile int sl_rec;                     /* recording into slot sl_rec - 1 (0: not) */
+#define SL_PIECE (64u * 1024u)                  /* (bytes copied a block: 1 MiB in 16 blocks) */
+static void sl_commit_step(void)                /* (the sound's flow) a slot encoded: silenced, copied in a piece a block,
+                                                 * then samples.c checks and indexes it, and it plays */
+{
+    static uint32_t at, k, on;
+    if (!on) {
+        if (sl_cm_n == sl_cm_done) return;
+        __atomic_thread_fence(__ATOMIC_ACQUIRE);
+        k = sl_cm_k & 3u, at = 0, on = 1;
+        smp[k].ready = 0, smp[k].state = SS_EMPTY;
+    }
+    vb_wtouch(VG_SLOT0 + k);
+    memcpy(fake_flash + k * SMP_SLOT_SIZE + at, sl_img + at, SL_PIECE);
+    at += SL_PIECE;
+    if (at < SMP_SLOT_SIZE) { vb_wclose(); return; }
+    smp_look(k);
+    vb_wclose();
+    on = 0;
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    sl_cm_done = sl_cm_n;
+}
+
+/* ---- REC: live_in.c hands each engine frame (44.1 kHz) to sl_rec_put while recording; two make one slot sample. The
+ * sound's flow records (started and stopped by the control flow's commands, main.c), the control flow encodes the take */
 static int sl_rec_dry;                          /* the input dry, not through the VOICE */
 static int32_t sl_rec_half;
 static uint32_t sl_rec_odd;
+static volatile uint32_t sl_rec_k, sl_rec_got, sl_rec_end;   /* (sound: the take's slot, its length, takes ended) */
+static uint32_t sl_rec_seen;                    /* (control: the takes encoded) */
 static void sl_rec_put(float x)                 /* (audio: from live_take) */
 {
     int32_t v = (int32_t)(x * 32767.0f);
@@ -68,13 +100,20 @@ static void sl_rec_put(float x)                 /* (audio: from live_take) */
     } else
         sl_rec_half = v;
 }
-static void sl_rec_start(uint32_t k) { sl_n = 0, sl_rec_odd = 0, sl_rec = (int)k + 1; }
-static void sl_rec_stop(void)
+static void sl_rec_start(uint32_t k) { sl_n = 0, sl_rec_odd = 0, sl_rec = (int)k + 1; }   /* (the sound's flow) */
+static void sl_rec_stop(void)                   /* (the sound's flow) the take handed over */
 {
-    uint32_t k = (uint32_t)sl_rec - 1u;
     if (!sl_rec) return;
-    sl_rec = 0;
-    if (sl_n >= 2205u) sl_write(k, "REC", sl_buf, sl_n);   /* (shorter than 0.1 s: nothing) */
+    sl_rec_k = (uint32_t)sl_rec - 1u, sl_rec_got = sl_n, sl_rec = 0;
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    sl_rec_end++;
+}
+static void sl_rec_take(void)                   /* (control) a take ended: kept, if it is 0.1 s or longer */
+{
+    if (sl_rec_end == sl_rec_seen || sl_busy()) return;
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    sl_rec_seen = sl_rec_end;
+    if (sl_rec_got >= 2205u) sl_write(sl_rec_k, "REC", sl_buf, sl_rec_got);
 }
 
 /* ---- LOAD: a WAV from the media, a piece a frame (vibe_on_draw, VIBE_MEDIA_EV_READY) */
@@ -84,6 +123,7 @@ static char wl_path[VIBE_MEDIA_PATH], wl_name[9], wl_msg[48];
 static uint64_t wl_off, wl_end;                 /* the next byte to read, the data's end */
 static uint64_t wl_t, wl_dt;                    /* the next output sample's time in input frames (Q32), a step */
 static uint64_t wl_in;                          /* input frames taken so far */
+static uint32_t wl_n;                           /* samples made so far (in sl_buf) */
 static float wl_prev, wl_lp[3];
 static uint8_t wl_b[32768];
 
@@ -97,7 +137,7 @@ static void wl_start(const char *path, uint32_t slot)
     wl_name[i] = 0;
     for (i = 0; path[i] && i < VIBE_MEDIA_PATH - 1u; i++) wl_path[i] = path[i];
     wl_path[i] = 0;
-    wl_slot = (int)slot, wl_ch = 0, wl_state = WL_HEAD, wl_off = 0, wl_err = 0, sl_n = 0, wl_in = 0, wl_t = 0, wl_prev = 0;
+    wl_slot = (int)slot, wl_ch = 0, wl_state = WL_HEAD, wl_off = 0, wl_err = 0, wl_n = 0, wl_in = 0, wl_t = 0, wl_prev = 0;
     wl_lp[0] = wl_lp[1] = wl_lp[2] = 0;
     strcpy(wl_msg, "LOADING");
 }
@@ -168,7 +208,7 @@ static void wl_step(void)                       /* (vibe_on_draw, READY) as much
         if (r == VIBE_MEDIA_PENDING) return;
         if (r < 0) { wl_fail("THE FILE IS GONE"); return; }
         nf = r / fb;
-        for (i = 0; i < nf && sl_n < SL_MAX; i++) {   /* each input frame: low-passed (below 22.05 kHz's 11 kHz when the
+        for (i = 0; i < nf && wl_n < SL_MAX; i++) {   /* each input frame: low-passed (below 22.05 kHz's 11 kHz when the
                                                  * input is faster), then the output samples between it and the last */
             float x = wl_frame(wl_b + i * fb);
             if (wl_dt > (3ull << 31)) {         /* (faster than 33 kHz: two one-poles at ~9 kHz of its rate) */
@@ -176,21 +216,21 @@ static void wl_step(void)                       /* (vibe_on_draw, READY) as much
                 a = a > 1.0f ? 1.0f : a;
                 wl_lp[0] += (x - wl_lp[0]) * a, wl_lp[1] += (wl_lp[0] - wl_lp[1]) * a, x = wl_lp[1];
             }
-            while ((wl_t >> 32) <= wl_in && sl_n < SL_MAX) {   /* (between frame wl_in - 1 and wl_in) */
+            while ((wl_t >> 32) <= wl_in && wl_n < SL_MAX) {   /* (between frame wl_in - 1 and wl_in) */
                 float f = (float)(uint32_t)wl_t * (1.0f / 4294967296.0f), y;
                 y = (wl_t >> 32) == wl_in ? x : wl_prev + (x - wl_prev) * f;
                 y = y > 1.0f ? 1.0f : y < -1.0f ? -1.0f : y;
-                sl_buf[sl_n++] = (int16_t)(y * 32767.0f);
+                sl_buf[wl_n++] = (int16_t)(y * 32767.0f);
                 wl_t += wl_dt;
             }
             wl_prev = x, wl_in++;
         }
         wl_off += (uint64_t)nf * (uint64_t)fb;
-        if (!r || wl_off >= wl_end || sl_n >= SL_MAX) {
+        if (!r || wl_off >= wl_end || wl_n >= SL_MAX) {
             wl_state = WL_IDLE;
-            if (sl_n < 64u) { wl_fail("EMPTY"); return; }
-            sl_write((uint32_t)wl_slot, wl_name, sl_buf, sl_n);
-            strcpy(wl_msg, sl_n >= SL_MAX ? "LOADED (CUT AT 95 S)" : "LOADED");
+            if (wl_n < 64u) { wl_fail("EMPTY"); return; }
+            sl_write((uint32_t)wl_slot, wl_name, sl_buf, wl_n);
+            strcpy(wl_msg, wl_n >= SL_MAX ? "LOADED (CUT AT 95 S)" : "LOADED");
             return;
         }
     }
@@ -249,7 +289,7 @@ static void ml_open(uint32_t slot)              /* ENTER: into a source or a fol
     for (i = 0; ml_field(ml_lines[ml_sel], 2)[i] && n < VIBE_MEDIA_PATH - 1; i++) p[n++] = ml_field(ml_lines[ml_sel], 2)[i];
     p[n] = 0;
     if (ml_lines[ml_sel][0] == 'd') { strcpy(ml_cur, p), ml_want = 1, ml_sel = ml_top = 0; }
-    else if (ml_is_wav(p)) wl_start(p, slot);
+    else if (ml_is_wav(p)) { if (!sl_rec && !sl_busy()) wl_start(p, slot); }
     else strcpy(wl_msg, "ONLY WAV FILES");
 }
 static void ml_up(void)
@@ -264,7 +304,7 @@ static void sl_drops(uint32_t slot)             /* (SDK 14) files let go on the 
 {
     char p[VIBE_MEDIA_PATH];
     int pad = -1, x, y;
-    if (wl_state != WL_IDLE) return;
+    if (wl_state != WL_IDLE || sl_rec || sl_busy()) return;
     if (vibe_media_dropped(p, (int)sizeof p, &pad, &x, &y) == 1) {
         if (ml_is_wav(p)) wl_start(p, pad >= 4 && pad < 8 ? (uint32_t)pad - 4u : slot);
         else strcpy(wl_msg, "ONLY WAV FILES");
@@ -274,6 +314,8 @@ static void sl_drops(uint32_t slot)             /* (SDK 14) files let go on the 
 static void sl_work(uint32_t slot)              /* (vibe_on_draw, VIBE_EV_MEDIA) the media's work, as far as it goes */
 {
     int i;
+    sl_rec_take();
+    if (sl_busy()) return;                      /* (a slot still being copied in: sl_img is in use) */
     for (i = 0; i < 4; i++) {
         int s = wl_state, w = ml_want;
         uint64_t o = wl_off;

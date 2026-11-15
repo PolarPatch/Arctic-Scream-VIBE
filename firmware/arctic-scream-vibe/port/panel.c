@@ -92,6 +92,44 @@ static void vp_value(int i, float d)            /* sound in's page: its value i 
     vb_input_sync();
 }
 
+/* Two flows (main.c): vp_event runs in the sound's flow, as the FM-1's buttons do (the engine is the sound's); what is the
+ * control flow's own, it does at once (vp_event_ctl): sound in's values (the host's parameters), the media's list, SAMPLE's
+ * REC (the take encoded there), and only reads the sound's flow's state (vp_page, sl_rec) */
+static int vp_event_ctl(const vibe_event *e)    /* (the control flow) 1: done here */
+{
+    if (e->type == VIBE_EV_ENCODER && e->id < VE_COUNT && vp_page != VP_FM && e->id <= VE_4) {
+        vp_value(e->id, e->value);
+        return 1;
+    }
+    if (e->type == VIBE_EV_ENCODER && vp_page == VP_SAMPLE && e->id == VE_DATA) {   /* SAMPLE: DATA through the media's list */
+        ml_sel += e->value > 0 ? 1 : -1;
+        ml_sel = ml_sel < 0 ? 0 : ml_sel >= ml_n ? (ml_n ? ml_n - 1 : 0) : ml_sel;
+        return 1;
+    }
+    if (e->type != VIBE_EV_BUTTON || vp_page != VP_SAMPLE || vp_help) return 0;
+    if (e->id == VB_ENTER || e->id == VB_DATA_PUSH) { if (e->down) ml_open((uint32_t)vibe_param_get(P_SLOT)); return 1; }
+    if (e->id == VB_RETURN && ml_cur[0]) { if (e->down) ml_up(); return 1; }
+    if (e->id == VB_REC) {                      /* SAMPLE: REC records the sound in into the slot (again: kept) */
+        if (!e->down) return 1;
+        if (sl_rec) vb_cmd(VB_CMD_REC_STOP, 0);
+        else if (wl_state == WL_IDLE && !sl_busy() && sl_rec_end == sl_rec_seen) {
+            if (vibe_param_get(P_IN) < 1.0f) vibe_param_set(P_IN, 1.0f), vb_input_sync();   /* (the input off:
+                                                 * IN 1 on, there is something to record) */
+            vb_cmd(VB_CMD_REC_START, (uint32_t)vibe_param_get(P_SLOT)), wl_msg[0] = 0;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static void vp_tick(void)                       /* (the sound's flow, each block) the pages' and the welcome card's time */
+{
+    if (vp_page != VP_FM && !sl_rec && wl_state == WL_IDLE && fm1_ms - vp_touch_t > 8000u)
+        vp_page = VP_FM;                        /* (sound in's pages untouched 8 s: back to the whole display; not while
+                                                 * it records or loads) */
+    if (vp_welcome && fm1_ms - ui_boot_t > UI_BOOT_MS + 30000u) vp_welcome = 0;   /* (the welcome card: 30 s at most) */
+}
+
 static void vp_event(const vibe_event *e)
 {
     vp_touch_t = fm1_ms;
@@ -119,18 +157,7 @@ static void vp_event(const vibe_event *e)
             else
                 vp_page = vp_page == f - 3 + VP_IN ? VP_FM : f - 3 + VP_IN;
         }
-        else if (vp_page == VP_SAMPLE && (b == VB_ENTER || b == VB_DATA_PUSH)) { if (e->down) ml_open((uint32_t)vibe_param_get(P_SLOT)); }
-        else if (vp_page == VP_SAMPLE && b == VB_RETURN && ml_cur[0]) { if (e->down) ml_up(); }
-        else if (vp_page == VP_SAMPLE && b == VB_REC) {   /* SAMPLE: REC records the sound in into the slot (again: kept) */
-            if (e->down) {
-                if (sl_rec) sl_rec_stop();
-                else if (wl_state == WL_IDLE) {
-                    if (vibe_param_get(P_IN) < 1.0f) vibe_param_set(P_IN, 1.0f), vb_input_sync();   /* (the input off:
-                                                 * IN 1 on, there is something to record) */
-                    sl_rec_start((uint32_t)vibe_param_get(P_SLOT)), wl_msg[0] = 0;
-                }
-            }
-        }
+        else if (vp_page == VP_SAMPLE && (b == VB_ENTER || b == VB_DATA_PUSH || b == VB_REC)) ;   /* (vp_event_ctl's) */
         else if (b == VB_RETURN) {              /* RETURN: from sound in's pages back to the FM-1's; there, its HOME */
             static int ret_home;
             if (e->down && vp_page != VP_FM) vp_page = VP_FM, ret_home = 0;
@@ -160,7 +187,7 @@ static void vp_event(const vibe_event *e)
         vp_pad(e->id, e->down);
     } else if (e->type == VIBE_EV_ENCODER && e->id < VE_COUNT) {
         int32_t d;
-        if (vp_page != VP_FM && e->id <= VE_4) { vp_value(e->id, e->value); return; }
+        if (vp_page != VP_FM && e->id <= VE_4) return;   /* (sound in's values: vp_event_ctl's) */
         if (e->id == VE_A) {                    /* A: the track into SPACE (SHIFT: into DELAY), a wash at hand */
             static float fa;
             volatile int32_t *q = vp_shift ? &trk[sel].dly : &trk[sel].rev;
@@ -175,11 +202,7 @@ static void vp_event(const vibe_event *e)
             hd_until = fm1_ms + 1500u;
             return;
         }
-        if (vp_page == VP_SAMPLE && e->id == VE_DATA) {   /* SAMPLE: DATA through the media's list */
-            ml_sel += e->value > 0 ? 1 : -1;
-            ml_sel = ml_sel < 0 ? 0 : ml_sel >= ml_n ? (ml_n ? ml_n - 1 : 0) : ml_sel;
-            return;
-        }
+        if (vp_page == VP_SAMPLE && e->id == VE_DATA) return;   /* (the media's list: vp_event_ctl's) */
         if (e->id == VE_DATA) vp_data_t = fm1_ms;   /* (HOME says PRESETS a moment) */
         vp_frac[e->id] += e->value;
         d = (int32_t)vp_frac[e->id];
@@ -309,7 +332,7 @@ static void vp_fm1_full(uint16_t *vfb)          /* the FM-1's screen as it is, a
 static void vp_link(void)                       /* (SDK 24) the encoders' names and values to a controller with a screen (an
                                                  * FM-1 under VIBE FM Link): DATA is PRESETS there too */
 {
-    char v[12];
+    char v[32];                                 /* (knob_text: up to "NOT BUILT YET" and longer) */
     int k;
     vibe_link_page(PAGES[page].name);
     for (k = 0; k < 4; k++) {
@@ -336,10 +359,6 @@ static void vp_draw(uint16_t *vfb)
         vp_fm1_2x(vfb);
         return;
     }
-    if (vp_page != VP_FM && !sl_rec && wl_state == WL_IDLE && fm1_ms - vp_touch_t > 8000u)
-        vp_page = VP_FM;                        /* (sound in's pages untouched 8 s: back to the whole display; not while
-                                                 * it records or loads) */
-    if (vp_welcome && fm1_ms - ui_boot_t > UI_BOOT_MS + 30000u) vp_welcome = 0;   /* (the welcome card: 30 s at most) */
     if (vp_welcome) { vp_welcome_card(vfb); return; }
     if (vp_page == VP_FM && page == PG_HOME) vp_home_full(vfb);   /* HOME: drawn again, the whole display */
     else if (vp_page == VP_FM) vp_fm1_full(vfb);   /* the FM-1's other pages: its screen, full height */

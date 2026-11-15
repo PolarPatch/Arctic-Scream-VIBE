@@ -82,8 +82,28 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 
 /* ---- settings: up to 256 bytes, kept in RAM (main.c: in the host's store later); as platform.c, a
  * load only succeeds with the length that was saved */
-static uint32_t vb_dirty;                       /* what changed since the host last kept it (persist.c): VD_ bits */
-enum { VD_SAVE = 1u, VD_SET = 2u, VD_SLOT0 = 4u };   /* (VD_SLOT0 << k: sample slot k) */
+/* What the engine writes, the host keeps (persist.c), from the other flow: the sound's flow writes the fake flash and the
+ * settings, the control flow copies them. A count, odd while a write is under way (from its first byte to the end of
+ * that millisecond, app_step: an autosave's sectors whole), and a count a part for each part written: one writer each,
+ * the control flow only reads (a copy taken while the count moved: taken again later) */
+enum { VG_SAVE, VG_SET, VG_SLOT0, VG_N = VG_SLOT0 + 4 };   /* (VG_SLOT0 + k: sample slot k) */
+static volatile uint32_t vb_wseq, vb_gen[VG_N];
+static uint32_t vb_wpend;
+static void vb_wtouch(uint32_t part)            /* (the sound's flow) a write begins */
+{
+    if (!(vb_wseq & 1u)) { vb_wseq++; __atomic_thread_fence(__ATOMIC_RELEASE); }
+    vb_wpend |= 1u << part;
+}
+static void vb_wclose(void)                     /* (the sound's flow) the writes so far done */
+{
+    uint32_t a;
+    if (!(vb_wseq & 1u)) return;
+    for (a = 0; a < VG_N; a++)
+        if (vb_wpend >> a & 1u) vb_gen[a]++;
+    vb_wpend = 0;
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    vb_wseq++;
+}
 static uint8_t vb_set[256];
 static int32_t vb_set_len = -1;
 static uint32_t vb_set_writes;
@@ -96,10 +116,10 @@ static int settings_load(void *p, uint32_t n)
 static int settings_save(const void *p, uint32_t n)
 {
     if (n > sizeof vb_set) return -1;
+    vb_wtouch(VG_SET);
     memcpy(vb_set, p, n);
     vb_set_len = (int32_t)n;
     vb_set_writes++;
-    vb_dirty |= VD_SET;
     return 0;
 }
 
@@ -138,8 +158,8 @@ static int sample_flash_erase(uint32_t off)
 {
     uint32_t i;
     if ((off & 0xFFFu) || off >= SAMPLE_AREA_LEN) return -8;
+    vb_wtouch(VG_SLOT0 + off / SMP_SLOT_SIZE);
     for (i = 0; i < 4096u; i++) fake_flash[off + i] = 0xFF;
-    vb_dirty |= VD_SLOT0 << (off / SMP_SLOT_SIZE);
     return 0;
 }
 static int sample_flash_write(uint32_t off, const void *p, uint32_t n)   /* NOR: a write only clears bits */
@@ -147,8 +167,9 @@ static int sample_flash_write(uint32_t off, const void *p, uint32_t n)   /* NOR:
     const uint8_t *s = p;
     uint32_t i;
     if (off >= SAMPLE_AREA_LEN || n > SAMPLE_AREA_LEN - off) return -8;
+    vb_wtouch(VG_SLOT0 + off / SMP_SLOT_SIZE);
+    if ((off + n - 1u) / SMP_SLOT_SIZE != off / SMP_SLOT_SIZE) vb_wtouch(VG_SLOT0 + (off + n - 1u) / SMP_SLOT_SIZE);
     for (i = 0; i < n; i++) fake_flash[off + i] &= s[i];
-    vb_dirty |= VD_SLOT0 << (off / SMP_SLOT_SIZE);
     return 0;
 }
 /* Arctic Scream: the save sectors (store.c), here RAM, erased at the start: nothing saved */
@@ -164,8 +185,8 @@ static int save_flash_erase(uint32_t i)
 {
     if (i >= SAVE_NSECT) return -8;
     (void)save_flash(0);
+    vb_wtouch(VG_SAVE);
     memset(fake_save[i], 0xFF, 4096u);
-    vb_dirty |= VD_SAVE;
     return 0;
 }
 static int save_flash_write(uint32_t i, uint32_t off, const void *p, uint32_t n)   /* NOR: a write only clears bits */
@@ -174,8 +195,8 @@ static int save_flash_write(uint32_t i, uint32_t off, const void *p, uint32_t n)
     uint32_t k;
     if (i >= SAVE_NSECT || off >= 4096u || n > 4096u - off) return -8;
     (void)save_flash(0);
+    vb_wtouch(VG_SAVE);
     for (k = 0; k < n; k++) fake_save[i][off + k] &= s[k];
-    vb_dirty |= VD_SAVE;
     return 0;
 }
 /* SysEx: the editor page's frames in (as USB would bring them: 7D .. without F0 / F7), the replies out (F0 .. F7) */
