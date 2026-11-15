@@ -24,6 +24,8 @@ same version (2.0), with what the FM-1 cannot do:
 - **The DAW**: the input's and the VOICE's settings are automatable parameters; the projects, settings and samples are
   saved in the DAW's project.
 
+New in 2.1.1: the automatic save waits for silence (the engine as on the FM-1).
+
 New in 2.1 (as Arctic Scream 2.1 on the FM-1): **Jiekna**, the singing ice, a tenth sound source; **JAHKI** (press
 LFO five times: the Arctic's year turning under the music through the eight Sami seasons); **ENV 2** (LOOP, ONSET,
 SPREAD, DETUNE); the LFO's **CHAOS**; **MOTION** (hold REC, turn an encoder: the move recorded and looped); **SWELL**
