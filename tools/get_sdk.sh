@@ -6,7 +6,7 @@
 #   tools/get_sdk.sh
 set -e
 cd "$(dirname "$0")/.."
-SDK_REV=86d02ca
+SDK_REV=2ac2340
 if [ ! -d sdk/.git ]; then
   git clone -q https://github.com/Vibe-FM-SDK/vibe-fm-sdk sdk
 fi

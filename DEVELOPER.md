@@ -91,7 +91,7 @@ arctic-scream-vibe/
 
 ## The SDK
 
-- `sdk/` is a clone of <https://github.com/Vibe-FM-SDK/vibe-fm-sdk> (Apache-2.0), at **86d02ca** (11 November 2026).
+- `sdk/` is a clone of <https://github.com/Vibe-FM-SDK/vibe-fm-sdk> (Apache-2.0), at **2ac2340** (SDK 27, 13 November 2026: two flows are a must).
   It is in `.gitignore`; `tools/` will fetch it at a pinned commit. The SDK is in early access: read its README's news
   before updating, and note the new commit here.
 - Read first: `sdk/AGENTS.md`, `sdk/FROM-FM1.md`, the headers in `sdk/sdk/include/` (they win over the docs). A full
@@ -140,8 +140,31 @@ stay one engine. Fixes to the engine are made in `arctic-drones` first.
 - **The split screen:** back to full screen after 8 s untouched and the right half in the FM-1's pixel look: done in
   2.1. Still waiting: the left half the tracks alone, full height.
 
+## Two flows (2.1.2, SDK 27)
+
+The sound runs in a thread of its own (`VIBE_PARALLEL_AUDIO`, Arctic-Scream-VIBE#1: the northern lights drawn in the
+sound's turn broke it up on the VIBE FM). Who owns what:
+
+- **The sound's flow** (`vibe_on_audio`): the engine, all of it. `app_step` (the millisecond's logic, the sequencer, the
+  autosave), the controls that move the engine (`vb_event`, `vp_event`: drained from the queue `vb_eq` each block),
+  REC's take (`sl_rec_*`), a slot copied in (`sl_commit_step`), the pages' and the welcome card's time (`vp_tick`).
+- **The control flow** (`vibe_on_event`, `vibe_on_draw`): the FM-1's screen (`app_draw`, the engine's `APP_DRAW_APART`),
+  the display, the lights and labels, Link, the host's parameters (`vp_event_ctl`: sound in's values), the media and the
+  WAVs (`sl_work`), a slot encoded (`sl_write` into `sl_img`), the saves kept in the host (`vs_flush`).
+- Between them only: the queue `vb_eq` (control writes, sound reads), counts with one writer each (`sl_cm_n` /
+  `sl_cm_done`, `sl_rec_end` / `sl_rec_seen`, the engine's `ui_force_n`), and the fake flash's seqlock (`vb_wseq`, odd
+  while the sound's flow writes, `vb_gen` a count a part): the control flow copies a part whole or tries again later.
+- The control flow reads the engine to draw it and never writes it (`knob_look`, not `knob_param`). The engine's own
+  handshakes for the meters and the waves (`vis_pk`, `vis_lr`, `sc_st`) are the FM-1's ISR's and stay as they are.
+- Checked: `vibe-check`, every `tests/` script's sound the same as with one flow, REC and a WAV's load into the same
+  slot bytes, and a native build with both flows at once under ThreadSanitizer and AddressSanitizer (random controls,
+  draws and saves against the sound, 60 s): no write from the control flow into the engine, no memory error.
+
 ## Log
 
+- 2026-11-15: 2.1.2, two flows (above). The SDK at 2ac2340 (SDK 27). The engine's `APP_DRAW_APART` and `knob_look`
+  (arctic-drones #12, #13; the FM-1 build unchanged). The Link's knob text had a 12-byte buffer ("NOT BUILT YET" is 13):
+  32 now.
 - 2026-11-13 (night): branch `feature/2.2`, the engine of arctic-drones' `feature/2.2`: the pictures move (the big
   card and SKY through the engine's `pic_anim_rows`, `port/home.c`), JAHKI (LFO's fifth page: the Sami year's eight
   seasons leaning the sound), the ice holding its breath, JIEHKKI's dusk and START ALWAYS. The keys' lights are the

@@ -4,14 +4,44 @@
  * VIBE FM firmware. Built with the VIBE FM SDK (Apache-2.0).
  *
  * The engine runs as on the FM-1, on a fake FM-1 (port/fm1_vibe.c), at its own 44.1 kHz: vibe_on_audio asks it for
- * the milliseconds the block needs (app_step, each one platform_poll) and resamples its ring to the host's rate. */
+ * the milliseconds the block needs (app_step, each one platform_poll) and resamples its ring to the host's rate.
+ *
+ * Two flows (VIBE_PARALLEL_AUDIO, SDK 27): the engine is the sound's flow's, as the FM-1's main loop and its audio
+ * interrupt are one CPU's: vibe_on_audio runs app_step (the millisecond's logic, the sequencer, the saves) and the
+ * controls that move the engine. The control flow (vibe_on_event, vibe_on_draw) draws the FM-1's screen (app_draw,
+ * APP_DRAW_APART), the display, the lights, loads and encodes samples, keeps the saves in the host: it reads what the
+ * sound's flow writes, and hands it the controls through a queue (vb_eq) and the rest by counts. */
 #define FM1_PLATFORM_FILE "../port/fm1_vibe.c"   /* (platform.c includes it, relative to engine/) */
-#define APP_VER "2.1.1"                         /* (the same as Arctic Scream on the FM-1: DEVELOPER.md) */
+#define APP_DRAW_APART                          /* (grimm.c: app_step does not draw; app_draw, from the control flow) */
+#define APP_VER "2.1.2"                         /* (Arctic Scream's versions are one line: the next one out, whichever device) */
 #include "engine/grimm.c"
 
 #include "vibe.h"
 #include "vibe_gfx.h"
 #include "vibe_dsp.h"
+
+VIBE_PARALLEL_AUDIO;
+
+/* ---- the controls, from the control flow to the sound's: a queue, one writer, one reader (vibe.h's rule 2); and the
+ * control flow's own commands in it (types above the SDK's) */
+enum { VB_CMD_REC_START = 200, VB_CMD_REC_STOP, VB_CMD_TOUCH };
+#define VB_EQ 256u
+static vibe_event vb_eq[VB_EQ];
+static volatile uint32_t vb_eq_w, vb_eq_r;
+static void vb_eq_put(const vibe_event *e)      /* (control) */
+{
+    if (vb_eq_w - vb_eq_r >= VB_EQ) return;     /* (full: the sound's flow has not run for a while; dropped) */
+    vb_eq[vb_eq_w % VB_EQ] = *e;
+    VIBE_RELEASE();
+    vb_eq_w++;
+}
+static void vb_cmd(int type, uint32_t arg)
+{
+    vibe_event c;
+    memset(&c, 0, sizeof c);
+    c.type = (uint8_t)type, c.id = (uint8_t)arg;
+    vb_eq_put(&c);
+}
 
 static float vb_sr = 44100.0f, vb_step = 1.0f, vb_pos;   /* the host's rate; engine frames a host frame; where in the ring */
 
@@ -97,17 +127,28 @@ void vibe_on_init(float sample_rate)
         if (fresh) sy_scr = set.scr = NSCR - 1u;   /* (the VIBE's first start: SCREEN OFF is GUOVSSAHAS, the northern
                                                  * lights after 2 min untouched; SYSTEM changes it as on the FM-1) */
     }
+    vb_wclose();                                /* (what the start wrote: the factory samples) */
 }
 
-void vibe_on_event(const vibe_event *e)
+void vibe_on_event(const vibe_event *e)         /* (the control flow) its own at once; the rest to the sound's flow */
 {
     if (e->type == VIBE_EV_PARAM) vb_input_sync();
-    else if (e->type == VIBE_EV_SAVE) vs_flush(1);
+    else if (e->type == VIBE_EV_SAVE) vs_flush(1);   /* (the host keeps our state now: a DAW saving its project) */
     else if (e->type == VIBE_EV_MEDIA) {        /* (SDK 13: the host has more; a source came or went; a drop) */
         if (e->id == VIBE_MEDIA_EV_SOURCES && !ml_cur[0]) ml_want = 1;
         sl_work((uint32_t)vibe_param_get(P_SLOT));
-    }   /* (the host keeps our state now: a DAW saving its project) */
-    else if (e->type == VIBE_EV_NOTE) {         /* a note. The VIBE's keys: where the FM-1 has that key (F2 + 12 x OCT ..
+    } else if (vp_event_ctl(e))
+        vb_cmd(VB_CMD_TOUCH, 0);                /* (a hand: the pages' time, the welcome card away) */
+    else
+        vb_eq_put(e);
+}
+
+static void vb_event(const vibe_event *e)       /* (the sound's flow) a control, as the FM-1's are */
+{
+    if (e->type == VB_CMD_REC_START) { sl_rec_start(e->id); return; }
+    if (e->type == VB_CMD_REC_STOP) { sl_rec_stop(); return; }
+    if (e->type == VB_CMD_TOUCH) { vp_touch_t = fm1_ms, vp_welcome = 0; return; }
+    if (e->type == VIBE_EV_NOTE) {         /* a note. The VIBE's keys: where the FM-1 has that key (F2 + 12 x OCT ..
                                                  * 26 keys up), as its key (REC into the sequence, LATCH per key, the key
                                                  * combinations, as on the FM-1); above it, and its pads, on the selected
                                                  * track's MIDI channel; MIDI and the DAW's on their own channel. An off
@@ -142,13 +183,21 @@ static float vb_at(uint32_t i, uint32_t c) { return ring[(i % RING) * 2u + c]; }
 void vibe_on_audio(const float *in, float *out_l, float *out_r, int frames)
 {
     int k, src = (int)vibe_param_get(P_IN);   /* (1 IN 1, 2 IN 2, 3 both) */
+    while (vb_eq_r != vb_eq_w) {                /* the controls since the last block */
+        VIBE_ACQUIRE();
+        vb_event(&vb_eq[vb_eq_r % VB_EQ]);
+        VIBE_RELEASE();
+        vb_eq_r++;
+    }
+    vp_tick();
+    sl_commit_step();                           /* (a slot encoded by the control flow: a piece of it in) */
     vb_live_params();
     live_put(src & 1 ? in : 0, src & 2 ? vibe_input(1) : 0, frames);
     for (k = 0; k < frames; k++) {
         uint32_t i = ring_r + (uint32_t)vb_pos, c;
         float t = vb_pos - (float)(uint32_t)vb_pos, o[2];
-        while (ring_w - i < 3u) dm_step(), app_step();   /* (the engine's next millisecond: up to 256 frames more;
-                                                 * a demo's next action first) */
+        while (ring_w - i < 3u) dm_step(), app_step(), vb_wclose();   /* (the engine's next millisecond: up to 256
+                                                 * frames more; a demo's next action first; what it saved, whole) */
         for (c = 0; c < 2u; c++) {              /* cubic Hermite through i-1 .. i+2 */
             float y0 = vb_at(i - 1u, c), y1 = vb_at(i, c), y2 = vb_at(i + 1u, c), y3 = vb_at(i + 2u, c);
             float a = (y3 - y0) * 0.5f + (y1 - y2) * 1.5f, b = y0 - y1 * 2.5f + y2 * 2.0f - y3 * 0.5f, d = (y2 - y0) * 0.5f;
@@ -166,10 +215,11 @@ void vibe_on_audio(const float *in, float *out_l, float *out_r, int frames)
 }
 
 /* ---- the display (port/panel.c); the FM-1's screen also to an FM-1 under VIBE FM Link, as it is (SDK 25) */
-void vibe_on_draw(uint16_t *vfb)
+void vibe_on_draw(uint16_t *vfb)                /* (the control flow) */
 {
     int o = 1 + set.oct;                        /* (the keys' octave follows OCT- / OCT+ as the FM-1 has it: C3 at 0) */
     vibe_keys_octave(o < 0 ? 0 : o > 7 ? 7 : o);
+    app_draw();                                 /* the FM-1's screen (fb), never in the sound's turn */
     sl_work((uint32_t)vibe_param_get(P_SLOT));
     vp_draw(vfb);
     vs_flush(0);

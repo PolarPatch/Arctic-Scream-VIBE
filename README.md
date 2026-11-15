@@ -24,6 +24,9 @@ same version (2.0), with what the FM-1 cannot do:
 - **The DAW**: the input's and the VOICE's settings are automatable parameters; the projects, settings and samples are
   saved in the DAW's project.
 
+New in 2.1.2: two flows. The sound has a thread of its own (the VIBE FM SDK's `VIBE_PARALLEL_AUDIO`): the display, the
+northern lights, loading samples and saving run beside it and never break it up, on the VIBE FM's 4 ms buffer.
+
 New in 2.1.1: the automatic save waits for silence (the engine as on the FM-1).
 
 New in 2.1 (as Arctic Scream 2.1 on the FM-1): **Jiekna**, the singing ice, a tenth sound source; **JAHKI** (press
