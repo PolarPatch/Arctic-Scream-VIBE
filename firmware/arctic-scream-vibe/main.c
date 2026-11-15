@@ -13,7 +13,7 @@
  * sound's flow writes, and hands it the controls through a queue (vb_eq) and the rest by counts. */
 #define FM1_PLATFORM_FILE "../port/fm1_vibe.c"   /* (platform.c includes it, relative to engine/) */
 #define APP_DRAW_APART                          /* (grimm.c: app_step does not draw; app_draw, from the control flow) */
-#define APP_VER "2.1.2"                         /* (Arctic Scream's versions are one line: the next one out, whichever device) */
+#define APP_VER "2.1.3"                         /* (Arctic Scream's versions are one line: the next one out, whichever device) */
 #include "engine/grimm.c"
 
 #include "vibe.h"
@@ -107,10 +107,12 @@ static void vb_live_params(void)                /* (once a block) the parameters
 #include "port/slots.c"                         /* long samples: REC, LOAD, DROP into the four slots */
 #include "port/panel.c"                         /* the VIBE's controls and display */
 #include "port/persist.c"                       /* the saves, the settings, the samples: the host keeps them */
+#include "port/stage.c"                         /* (SDK 23) the stage: the polar night, drawn by what plays */
 
 void vibe_on_init(float sample_rate)
 {
     vb_sr = sample_rate > 1000.0f ? sample_rate : 44100.0f;
+    vibe_stage(st_fb, ST_W, ST_H, 0x05080d, VIBE_STAGE_REPLACES);   /* (a host that can: the stage in place of the device) */
     vb_step = (float)FS / vb_sr;
     vibe_notes(VIBE_NOTES);
     vibe_params(PARAMS, P_COUNT);
@@ -137,7 +139,9 @@ void vibe_on_event(const vibe_event *e)         /* (the control flow) its own at
     else if (e->type == VIBE_EV_MEDIA) {        /* (SDK 13: the host has more; a source came or went; a drop) */
         if (e->id == VIBE_MEDIA_EV_SOURCES && !ml_cur[0]) ml_want = 1;
         sl_work((uint32_t)vibe_param_get(P_SLOT));
-    } else if (vp_event_ctl(e))
+    } else if (e->type == VIBE_EV_STAGE)
+        st_event(e);                            /* (the pointer on the stage: a block of ice is a pad) */
+    else if (vp_event_ctl(e))
         vb_cmd(VB_CMD_TOUCH, 0);                /* (a hand: the pages' time, the welcome card away) */
     else
         vb_eq_put(e);

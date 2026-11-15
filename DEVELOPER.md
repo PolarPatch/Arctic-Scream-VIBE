@@ -162,6 +162,9 @@ sound's turn broke it up on the VIBE FM). Who owns what:
 
 ## Log
 
+- 2026-11-15: 2.1.3, the stage (`port/stage.c`, SDK 23, 960 x 540, VIBE_STAGE_REPLACES): drawn in the control flow from
+  what the engine writes (the levels: the engine's `vis_lv`, arctic-drones #14), a block clicked goes to the sound's
+  flow as a pad (`vb_eq`). `vibe-check`: every frame under 10 ms, the sound the same with and without it.
 - 2026-11-15: 2.1.2, two flows (above). The SDK at 2ac2340 (SDK 27). The engine's `APP_DRAW_APART` and `knob_look`
   (arctic-drones #12, #13; the FM-1 build unchanged). The Link's knob text had a 12-byte buffer ("NOT BUILT YET" is 13):
   32 now.
