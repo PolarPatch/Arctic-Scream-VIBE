@@ -24,6 +24,11 @@ same version (2.0), with what the FM-1 cannot do:
 - **The DAW**: the input's and the VOICE's settings are automatable parameters; the projects, settings and samples are
   saved in the DAW's project.
 
+New in 2.1.3: **the stage.** In the Web Player Arctic Scream opens on the polar night, drawn by what plays: four
+northern lights, one a track in its colour, hanging as high and bright as it sounds; the selected sound's picture,
+torn when it screams; JAHKI's season in the moon; the tracks on the frozen lake; the pads as blocks of ice to click;
+snow falling at the tempo. The device is one key away, and the display and the pads still do everything.
+
 New in 2.1.2: two flows. The sound has a thread of its own (the VIBE FM SDK's `VIBE_PARALLEL_AUDIO`): the display, the
 northern lights, loading samples and saving run beside it and never break it up, on the VIBE FM's 4 ms buffer.
 

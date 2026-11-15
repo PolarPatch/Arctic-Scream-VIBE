@@ -13,7 +13,7 @@
  * sound's flow writes, and hands it the controls through a queue (vb_eq) and the rest by counts. */
 #define FM1_PLATFORM_FILE "../port/fm1_vibe.c"   /* (platform.c includes it, relative to engine/) */
 #define APP_DRAW_APART                          /* (grimm.c: app_step does not draw; app_draw, from the control flow) */
-#define APP_VER "2.1.2"                         /* (Arctic Scream's versions are one line: the next one out, whichever device) */
+#define APP_VER "2.1.3"                         /* (Arctic Scream's versions are one line: the next one out, whichever device) */
 #include "engine/grimm.c"
 
 #include "vibe.h"
