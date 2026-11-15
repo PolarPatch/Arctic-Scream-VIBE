@@ -107,10 +107,12 @@ static void vb_live_params(void)                /* (once a block) the parameters
 #include "port/slots.c"                         /* long samples: REC, LOAD, DROP into the four slots */
 #include "port/panel.c"                         /* the VIBE's controls and display */
 #include "port/persist.c"                       /* the saves, the settings, the samples: the host keeps them */
+#include "port/stage.c"                         /* (SDK 23) the stage: the polar night, drawn by what plays */
 
 void vibe_on_init(float sample_rate)
 {
     vb_sr = sample_rate > 1000.0f ? sample_rate : 44100.0f;
+    vibe_stage(st_fb, ST_W, ST_H, 0x05080d, VIBE_STAGE_REPLACES);   /* (a host that can: the stage in place of the device) */
     vb_step = (float)FS / vb_sr;
     vibe_notes(VIBE_NOTES);
     vibe_params(PARAMS, P_COUNT);
@@ -137,7 +139,9 @@ void vibe_on_event(const vibe_event *e)         /* (the control flow) its own at
     else if (e->type == VIBE_EV_MEDIA) {        /* (SDK 13: the host has more; a source came or went; a drop) */
         if (e->id == VIBE_MEDIA_EV_SOURCES && !ml_cur[0]) ml_want = 1;
         sl_work((uint32_t)vibe_param_get(P_SLOT));
-    } else if (vp_event_ctl(e))
+    } else if (e->type == VIBE_EV_STAGE)
+        st_event(e);                            /* (the pointer on the stage: a block of ice is a pad) */
+    else if (vp_event_ctl(e))
         vb_cmd(VB_CMD_TOUCH, 0);                /* (a hand: the pages' time, the welcome card away) */
     else
         vb_eq_put(e);
