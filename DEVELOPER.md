@@ -106,7 +106,7 @@ arctic-scream-vibe/
 
 ## The port: how the engine gets in
 
-The engine is `arctic-drones/firmware/src/` (a unity build: `grimm.c` includes the rest). What we know:
+The engine is `arctic-drones/firmware/src/` (a unity build: `arctic.c` includes the rest). What we know:
 
 - `app_audio(int32_t *out, uint32_t n)` renders the sound: it can be called from `vibe_on_audio`.
 - `app_main()` is a loop that never returns (the panel, the screen, saving, MIDI): its body has to become a step

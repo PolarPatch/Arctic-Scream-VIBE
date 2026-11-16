@@ -89,7 +89,7 @@ def boot_frames():                              # the boot screen, 240 x 240, at
     os.makedirs(d, exist_ok=True)
     scr = os.path.join(d, "boot.txt")
     open(scr, "w").write("t 6000\nend\n")
-    subprocess.run([os.path.join(AD, "build", "host", "grimm"), os.path.join(d, "b"), scr, str(BOOT_FPS)], check=True,
+    subprocess.run([os.path.join(AD, "build", "host", "arctic"), os.path.join(d, "b"), scr, str(BOOT_FPS)], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     names = sorted(n for n in os.listdir(d) if n.endswith(".ppm"))
     for n in names:

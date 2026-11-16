@@ -5,10 +5,10 @@
  * windows, a ring modulator, a soft clip); none of another's code.
  *
  *   main.c   live_put: each host block's input, at the host's rate, into li_ring
- *   engine   live_take (grimm.c app_audio): n frames at 44.1 kHz for its render, resampled from li_ring a little behind
+ *   engine   live_take (arctic.c app_audio): n frames at 44.1 kHz for its render, resampled from li_ring a little behind
  *            its newest frame (the engine renders ahead of the host's blocks), through the VOICE; live_ex: the tracks
  *            whose Holvut strings hear it (howl.c hw_excite, EXCITE the amount); live_g: the levels into the mix and
- *            the DLY, REV and GRAIN buses (grimm.c live_mix)
+ *            the DLY, REV and GRAIN buses (arctic.c live_mix)
  *
  * The engine includes this file through the platform (fm1_vibe.c), so it is in the engine's audio path: nothing here
  * waits, allocates or calls the host. */
