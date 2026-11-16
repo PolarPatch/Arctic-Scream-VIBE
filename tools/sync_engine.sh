@@ -9,7 +9,7 @@
 set -e
 cd "$(dirname "$0")/.."
 AD="${1:-../arctic-drones}"
-[ -f "$AD/firmware/src/grimm.c" ] || { echo "sync_engine: no Arctic Scream at $AD"; exit 1; }
+[ -f "$AD/firmware/src/arctic.c" ] || { echo "sync_engine: no Arctic Scream at $AD"; exit 1; }
 E=firmware/arctic-scream-vibe/engine
 if [ -d "$E" ]; then mkdir -p ~/.Trash && mv "$E" ~/.Trash/engine-$(date +%Y%m%d-%H%M%S)-$$; fi   # (the old copy, never rm -rf)
 mkdir -p "$E"

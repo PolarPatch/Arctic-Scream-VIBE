@@ -4,7 +4,7 @@
  * design it keeps: that file follows Felucca's browser build, web/emu/felucca_web.c of hugelton/Felucca (Copyright (C)
  * 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments, GPL-3.0), which follows X0X's, web/emu/x0x_web.c of
  * charlesvestal/fm1-x0x (GPL-3.0). */
-/* platform.c includes this file (FM1_PLATFORM_FILE, set by main.c) instead of the hardware; the app (engine/grimm.c)
+/* platform.c includes this file (FM1_PLATFORM_FILE, set by main.c) instead of the hardware; the app (engine/arctic.c)
  * runs unchanged on it. VIBE FM has no loop that never returns: main.c calls app_start once and app_step for each
  * millisecond of sound the host asks for. One app_step is one call of platform_poll(): one millisecond of the device,
  * the audio halves due by then (app_audio) into a ring at 44.1 kHz, which main.c resamples to the host's rate.

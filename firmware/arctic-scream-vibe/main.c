@@ -12,9 +12,9 @@
  * APP_DRAW_APART), the display, the lights, loads and encodes samples, keeps the saves in the host: it reads what the
  * sound's flow writes, and hands it the controls through a queue (vb_eq) and the rest by counts. */
 #define FM1_PLATFORM_FILE "../port/fm1_vibe.c"   /* (platform.c includes it, relative to engine/) */
-#define APP_DRAW_APART                          /* (grimm.c: app_step does not draw; app_draw, from the control flow) */
+#define APP_DRAW_APART                          /* (arctic.c: app_step does not draw; app_draw, from the control flow) */
 #define APP_VER "2.1.3"                         /* (Arctic Scream's versions are one line: the next one out, whichever device) */
-#include "engine/grimm.c"
+#include "engine/arctic.c"
 
 #include "vibe.h"
 #include "vibe_gfx.h"
