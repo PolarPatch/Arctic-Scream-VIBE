@@ -211,6 +211,7 @@ static int sysex_get(const uint8_t **p, uint32_t *n)
 }
 static void sysex_done(void) { vb_sx_in_ready = 0; }
 static int ann_wire_send(const uint8_t *p, uint32_t n) { (void)p; (void)n; return -1; }   /* (1.5: no reader here yet) */
+static int mr_wire_send(const uint8_t *p, uint32_t n) { (void)p; (void)n; return -1; }    /* (2.1.6: SCREEN MIRROR, no wire here: the VIBE shows its own screen) */
 static int po_wire_send(const uint8_t *p, uint32_t n) { (void)p; (void)n; return -1; }    /* (1.5.2: PANEL OUT, none here) */
 static int sysex_send(const uint8_t *p, uint32_t n)
 {
@@ -228,6 +229,7 @@ static void app_audio(int32_t *out, uint32_t n);
 static float ring[RING * 2u];
 static uint32_t ring_w, ring_r, vb_owed;
 static int32_t vb_knob = 1023, vb_knob_avg = 1023 * 16, vb_master_q12 = 4088;   /* MASTER: at its top (the VIBE's VOLUME is the host's) */
+static volatile int8_t fm1_jack = -1;           /* (2.1.4) SOUND AUTO's jack: none here (the box's output: the whole range) */
 static int32_t fm1_master(void) { return vb_master_q12; }   /* (the app's output stage asks) */
 
 static void platform_poll(void)                 /* one call = one millisecond */

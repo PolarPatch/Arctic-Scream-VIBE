@@ -108,7 +108,7 @@ static char *ui_3(char *s, uint32_t v) { s[0] = (char)('0' + v / 100u % 10u), s[
 static uint32_t ui_pc(int32_t v) { return ((uint32_t)clamp(v, 0, 127) * 100u + 63u) / 127u; }
 
 /* a source's short name (the HOME slabs: "T2 FM") */
-static const char *const SRC_CODE[NENG] = {"VA", "FM", "SA", "VO", "WH", "PH", "PD", "HW", "BI", "JI"};
+static const char *const SRC_CODE[NENG] = {"VA", "FM", "SA", "VO", "WH", "PH", "PD", "HW", "BI", "JI", "DP"};
 
 /* ---- the header */
 static char ui_hb[12], ui_hl[24], ui_hr[12];    /* the button, the left, the right */
@@ -132,6 +132,10 @@ static void ui_head_text(void)
         if (e != ui_hl) e = put_s(e, " ");
         e = put_s(put_u(put_s(e, "T"), sel + 1u), " ");
         put_s(e, ENGINES[sel_eng()]->name);
+        if (ui_len(ui_hl) > 20 - ui_len(ui_hb))   /* (2.1.6: a name of two words too long here, "Luovos boazu": its
+                                                 * first, "Luovos") */
+            for (char *c = e; *c; c++)
+                if (*c == ' ') { *c = 0; break; }
         if (trk[sel].chord || trk[sel].arp) {   /* chord mode, ARP on: CHORD, ARP after the track (no room: in the
                                                  * source's place, shorter if need be) */
             const char *tg = trk[sel].chord && trk[sel].arp ? "CHORD ARP" : trk[sel].chord ? "CHORD" : "ARP";
@@ -346,7 +350,11 @@ static void ui_slab_make(uint32_t k, slab_t *S)
         }
         ui_3(S->val, ui_pc(v));
         return;
-    case PG_SOURCE: put_s(S->val, k ? (v ? "ON" : "OFF") : ENGINES[clamp(v, 0, NENG - 1)]->name); return;
+    case PG_SOURCE:
+        put_s(S->val, k ? (v ? "ON" : "OFF") : ENGINES[clamp(v, 0, NENG - 1)]->name);
+        for (char *c = S->val; !k && *c; c++)   /* (2.1.6: "Luovos boazu" in the knob: "Luovos") */
+            if (*c == ' ') { *c = 0; break; }
+        return;
     case PG_SYSTEM:                             /* COLOUR, MIDI ("ALL": ALL > SEL; "CH5>S": CH 5 > SEL), TUNE, SCREEN
                                                  * OFF ("NVR": full) */
         if (k == 0u) S->fill = (uint8_t)((v + 1) * 8 / 5), put_s(S->val, COL_NAME[clamp(v, 0, 4)]);
@@ -366,8 +374,9 @@ static void ui_slab_make(uint32_t k, slab_t *S)
         put_s(S->val, k == 2u ? (v ? SMP_FACT_N ? "RESTORE" : "CLEAR" : "KEEP") : k ? (v ? "ON" : "OFF") :
               v == LEARN_CLEAR ? "CLEAR" : LEARN_NAME[clamp(v, 0, 2)]);
         return;
-    case PG_SYS4:                               /* (2.2) SOUND: "PHONES", "SPKR"; HELP: ON, OFF */
-        put_s(S->val, k == 0u ? (v ? "SPKR" : "PHONES") : v ? "ON" : "OFF");
+    case PG_SYS4:                               /* (2.2) SOUND: (2.1.4) "AUTO", "PHONES", "SPKR"; HELP: ON, OFF */
+        put_s(S->val, k == 0u ? (v == 2 ? "SPKR" : v ? "PHONES" : "AUTO") : k == 2u ? (v == 2 ? "V+P" : v ? "VEL" : "OFF") :
+              v ? "ON" : "OFF");
         return;
     case PG_SYS3:                               /* LATCH: FROM SOUND, ALWAYS OFF; USB LEVEL: -12DB .. +24DB;
                                                  * (1.5.2) MOD OUT: OFF, ON */
@@ -407,6 +416,11 @@ static void ui_slab_make(uint32_t k, slab_t *S)
         if (k == 0u) put_s(S->val, JK_LEN_NAME[clamp(v, 0, JK_NLEN - 1)]);
         else if (k < 3u) ui_3(S->val, (uint32_t)clamp(v, 0, 100));
         else put_s(S->val, v >= JK_ALWAYS ? "ALWAYS" : v ? "ON" : "OFF");   /* (2.2: ALWAYS) */
+        return;
+    case PG_TIDE:                               /* (2.1.4) TIDE ("SOME"), DEPTH %, GUARD %, NOW */
+        if (k == 0u) put_s(S->val, TD_SHORT[clamp(v, 0, TD_NMODE - 1)]);
+        else if (k == 3u) put_s(S->val, v ? "OUT" : "IN");
+        else ui_3(S->val, (uint32_t)clamp(v, 0, 100));
         return;
     case PG_JAHKI:                              /* (2.2) YEAR, SEASON ("G.GEAS"), DEPTH %, SKY */
         if (k == 0u) put_s(S->val, YR_LEN_NAME[clamp(v, 0, YR_NLEN - 1)]);
@@ -570,7 +584,7 @@ static void ui_tint(uint32_t pg)
     case PG_ENV: case PG_ENV2: a = BW_AMBER, b = BW_TEAL, c = BW_PERIWINKLE, x = BW_MAGENTA; break;
     case PG_LFO: a = BW_PINK, b = BW_CYAN, c = BW_AMBER, x = UI_W; break;
     case PG_DRONE: a = BW_CYAN, b = BW_VIOLET, c = BW_TEAL, x = BW_MAGENTA; break;
-    case PG_JIEHKKI: case PG_RUOHCAT: case PG_JAHKI: a = BW_SKY, b = BW_CYAN, c = BW_BLUE, x = BW_GREEN; break;
+    case PG_JIEHKKI: case PG_RUOHCAT: case PG_JAHKI: case PG_TIDE: a = BW_SKY, b = BW_CYAN, c = BW_BLUE, x = BW_GREEN; break;
     case PG_SOUND: case PG_SOURCE: case PG_FMALGO: case PG_FMOP: case PG_LOOP: a = BW_PERIWINKLE, b = BW_TEAL, c = BW_PINK, x = BW_AMBER; break;
     case PG_GRID: case PG_PATTERN: a = BW_VIOLET, b = BW_CYAN, c = BW_PINK, x = BW_MAGENTA; break;
     case PG_SCALE: case PG_CHORD: a = BW_LAVENDER, b = BW_CYAN, c = BW_TEAL, x = BW_AMBER; break;
@@ -1342,6 +1356,36 @@ static void pic_jahki(void)
     ui_text(PX0, 137, yr_depth > 0 ? l : "DEPTH 0: THE YEAR ONLY TURNS", 1, UI_L);
 }
 
+/* (2.1.4) TIDE's page: the sea, its level the tide's now (down the page as it ebbs), what it is doing and when the
+ * next ebb is due; GUARD's hand on the level, in dB, while it holds a swell down */
+static void pic_tide(void)
+{
+    static const char *const ST[4] = {"THE TIDE IS IN", "THE TIDE GOES OUT", "THE TIDE IS OUT", "THE TIDE COMES BACK"};
+    int32_t lv = td_lv, y = 60 + (int32_t)((-lv > TD_DB(36.0) ? TD_DB(36.0) : -lv) / (TD_DB(36.0) / 56)), gv = -td_gov_shown;
+    uint32_t k;
+    char l[28], r[12], *p;
+    put_s(r, TD_NAME[clamp(td_mode, 0, TD_NMODE - 1)]);
+    ui_caption(ST[td_st & 3u], r);
+    for (k = 0; k < 6u; k++)                    /* (the sea: its surface at the tide's level, waves on it) */
+        ui_rect(PX0, y + (int32_t)k * 10, 216, (int32_t)(k ? 9 : 2), k ? ui_mix(UI_K, UI_KC[0], 10 - (int32_t)k, 16) : UI_KC[0]);
+    for (k = 0; k < 9u; k++)
+        ui_rect(PX0 + (int32_t)((k * 27u + fm1_ms / 120u) % 216u), y - 2, 8, 2, UI_W);
+    if (td_mode != TD_OFF && td_st == TS_IN) {
+        uint32_t m = (td_next - fm1_ms) / 60000u + 1u;
+        p = put_u(put_s(l, "THE NEXT EBB IN ABOUT "), m * TD_SPEED > 0u ? m : 1u);
+        put_s(p, " MIN");
+    } else {
+        p = put_s(l, td_st == TS_IN ? "TIDE OFF" : "LEVEL -");
+        if (td_st != TS_IN) put_s(put_u(p, (uint32_t)(-lv / TD_DB(1.0))), " DB");
+    }
+    ui_text(PX0, 126, l, 1, UI_L);
+    p = put_s(l, "GUARD ");
+    if (!td_guard) put_s(p, "OFF");
+    else if (gv < TD_DB(0.5)) put_s(p, "RESTING");
+    else put_s(put_u(put_s(p, "HOLDS -"), (uint32_t)(gv / TD_DB(1.0))), " DB");
+    ui_text(PX0, 137, l, 1, td_guard && gv >= TD_DB(0.5) ? UI_W : UI_L);
+}
+
 /* (2.0) RUOHCAT's page: the four sample slots as strips of ice, each as long as its sample, the ones SAMPLE plays
  * lit, a sample playing a white line moving along it; RUOHCAT's crack flashing as on JIEHKKI */
 static void pic_ruohcat(void)
@@ -1435,12 +1479,39 @@ static void pic_biegga(void)
     }
 }
 
+/* (2.1.6) EditDeep: the four generators as four waves, the deepest lowest and slowest (DEPTH's tunings), each bent by the
+ * one above it as COUPLE rises, breathing (DRIFT: their brightness rising and falling, each its own), their light as
+ * TONE opens; moving (UI_ANIM_MS) */
+static void pic_deep(void)
+{
+    static const uint16_t R[4][4] = {{4, 4, 4, 4}, {2, 4, 4, 6}, {1, 2, 4, 6}, {1, 2, 4, 4}};   /* (DP_RAT's, x 4) */
+    const volatile int32_t *p = trk[sel].p[ENG_DEEP];
+    int32_t dp = clamp(p[0], 0, 127), cp = clamp(p[1], 0, 127), dr = clamp(p[2], 0, 127), tn = clamp(p[3], 0, 127);
+    int32_t y[55], i, j, si = dp * 3 / 128;
+    char l[16], r[16], t[12];
+    dp_text(p, 0u, t);
+    put_s(t[0] >= '0' && t[0] <= '9' ? put_s(l, "DEPTH ") : l, t);
+    put_s(put_u(put_s(r, "COUPLE "), (uint32_t)(cp * 100 / 127)), "%");
+    ui_caption(l, r);
+    for (j = 0; j < 4; j++) {
+        uint32_t cyc = R[si][j] + (j == 3 && si == 3);   /* (the rub: a hair faster than the note) */
+        int32_t base = 132 - j * 24, amp = 6 + (3 - j) * 3 + (j == 0) * dp / 32;
+        uint32_t lv = (uint32_t)clamp(6 + tn / 16 + hw_wave((hw_ph / 3u + (uint32_t)j * 64u) & 255u) * dr / 127 / 16, 3, 15);
+        for (i = 0; i < 55; i++) {
+            uint32_t ph = (uint32_t)i * cyc * 256u / 27u + hw_ph * cyc;
+            int32_t bend = hw_wave(((uint32_t)i * 9u + hw_ph * 3u + (uint32_t)j * 40u) & 255u) * cp / 127;   /* (COUPLE) */
+            y[i] = base + hw_wave((ph + (uint32_t)bend) & 255u) * amp / 64;
+        }
+        ui_glow(PX0, 4, y, 55, ui_mix(UI_K, UI_KC[j], lv, 16u));
+    }
+}
+
 static void pic_source(void)                    /* the nine sources, the track's in the accent; LATCH */
 {
     int32_t i, e = (int32_t)sel_eng();
     ui_caption("SOURCE", 0);
     for (i = 0; i < (int32_t)NENG; i++) {
-        int32_t y = 43 + i * 12;                /* (2.0: nine of them, 12 px apart) */
+        int32_t y = 43 + i * 11;                /* (2.1.6: eleven of them, 11 px apart) */
         if (i == e) ui_rect(PX0, y - 2, 108, 11, UI_D);
         ui_text(PX0 + 4, y, i == e ? ">" : " ", 1, ui_acc);
         ui_text(PX0 + 16, y, ENGINES[i]->name, 1, i == e ? ui_acc : UI_M);
@@ -1529,7 +1600,7 @@ static int ui_anim_page(uint32_t p)             /* the pages whose ribbons move 
     return p == PG_DRONE || p == PG_ENV || p == PG_TAPE || p == PG_GRAIN || p == PG_DELAY || p == PG_SPACE || p == PG_LFO ||
            p == PG_MIX1 || p == PG_MIX2 || p == PG_MASTER || p == PG_DRIVE || p == PG_SOUND || p == PG_FMOP || p == PG_FMALGO || p == PG_SCALE ||
            p == PG_CHORD || p == PG_PERFORM || p == PG_ARP || p == PG_LOOP || p == PG_AIR || p == PG_JIEHKKI ||
-           p == PG_RUOHCAT || p == PG_JAHKI || p == PG_ENV2;
+           p == PG_RUOHCAT || p == PG_JAHKI || p == PG_ENV2 || p == PG_TIDE;
 }
 
 /* ---- the aurora pages (Arctic Scream p0larpatch, after the DRONE and Holvut pages): every knob a ribbon of northern
@@ -2299,12 +2370,32 @@ static void sys3_row(int32_t y, const char *l, const char *v)
 }
 static void pic_sys4(void)                      /* (2.2) SYSTEM 4: SOUND (the speaker's curve), HELP */
 {
-    ui_caption("SOUND, HELP", 0);
-    sys3_row(40, "SOUND", spk_mode ? "SPEAKER" : "HEADPHONES");
-    ui_text(PX0 + 6, 57, spk_mode ? "LOWS OFF, LOW MIDS UP" : "THE WHOLE RANGE", 1, UI_M);
+    ui_caption("SOUND, HELP, TOUCH", 0);
+    sys3_row(40, "SOUND", spk_mode == 2u ? "SPEAKER" : spk_mode ? "HEADPHONES" : SPK_ON() ? "AUTO: SPEAKER" : "AUTO: PHONES");
+    ui_text(PX0 + 6, 57, SPK_ON() ? "LOWS OFF, LOW MIDS UP" : "THE WHOLE RANGE", 1, UI_M);
     ui_text(PX0 + 6, 68, "USB AS EVER", 1, UI_M);
     sys3_row(82, "HELP", help_on ? "ON" : "OFF");
     ui_text(PX0 + 6, 99, help_on ? "A KNOB TURNED SAYS WHAT IT DOES" : "NO HELP LINES", 1, UI_M);
+    sys3_row(112, "TOUCH", tch_mode == TCH_PRESS ? "VEL+PRESS" : tch_mode ? "VELOCITY" : "OFF");   /* (2.1.4) */
+    if (tch_mode && tch_last_k < 27u) {         /* (the last key played: its velocity, its pressure while held) */
+        char v[32], *e = put_u(put_s(v, "KEY "), tch_last_k + 1u);
+        e = put_u(put_s(e, " VEL "), tch_last_v);
+        if (tch_mode == TCH_PRESS && tch_last_k < TT_NA) put_u(put_s(e, " PRESS "), tch_pv[tch_last_k]);
+        ui_text(PX0 + 6, 129, v, 1, UI_M);
+    } else {
+        ui_text(PX0 + 6, 129, tch_mode ? "PLAY A KEY" : "THE KEYS AT ONE LEVEL", 1, UI_M);
+    }
+#ifdef FM1_TOUCH_HAL
+    if (tch_mode) {                             /* (the scan itself: on, conversions never done, the last key's raw
+                                                 * readings, pulled up and driven: a test line) */
+        char v[40], *e = put_s(v, fm1_tch.on ? "SCAN ON TO " : "SCAN OFF TO ");
+        uint32_t k = tch_last_k < TT_NA ? tch_last_k : 0u;
+        e = put_u(e, fm1_tch.timeouts > 9999u ? 9999u : fm1_tch.timeouts);
+        e = put_u(put_s(e, " R "), tt_k[k].v);
+        put_u(put_s(e, " D "), tt_k[k].d);
+        ui_text(PX0 + 6, 141, v, 1, UI_M);
+    }
+#endif
 }
 static void pic_sys3(void)                      /* SYSTEM 3: LATCH, what it does; the combo for the track's;
                                                  * (Arctic Scream p0larpatch) USB LEVEL, the computer's recording */
@@ -2342,6 +2433,7 @@ static void ui_pic_draw0(void)
         case ENG_HOWL: pic_howl(); return;
         case ENG_BIEGGA: pic_biegga(); return;
         case ENG_JIEKNA: pic_jiekna(); return;
+        case ENG_DEEP: pic_deep(); return;
         default: pic_phase(); return;
         }
     case PG_SOURCE: pic_source(); return;
@@ -2364,6 +2456,7 @@ static void ui_pic_draw0(void)
     case PG_JIEHKKI: pic_jiehkki(); return;
     case PG_RUOHCAT: pic_ruohcat(); return;
     case PG_JAHKI: pic_jahki(); return;
+    case PG_TIDE: pic_tide(); return;
     case PG_SONG: pic_song(); return;
     case PG_PERFORM: pic_perform(); return;
     case PG_SOUNDS: pic_sounds(); return;
@@ -2390,7 +2483,7 @@ static void ui_pic_draw(void)                   /* the page's picture; (2.2) HEL
     ui_pic_draw0();
     if (help_up() && page != PG_HOME) {
         ui_rect(PX0, 151, 216, 12, UI_D);
-        ui_text(PX0 + 108 - 4 * ui_len(hl_txt), 153, hl_txt, 1, UI_W);
+        ui_text(PX0 + 108 - 4 * ui_len(hl_txt), 153, hl_txt, 1, hl_warn ? BW_PINK : UI_W);
     }
 }
 
@@ -2443,7 +2536,11 @@ static uint32_t ui_pic_key(void)
             UI_H(tracks_latched()), UI_H(playing);
     if (page == PG_SYSTEM || page == PG_SYS2 || page == PG_SYS3 || page == PG_SYS4) {   /* the settings, the links */
         UI_H(set.col), UI_H(set.mch), UI_H(set.tune), UI_H(set.scr), UI_H(set.out), UI_H(set.nlk), UI_H(set.latch), UI_H(set.usb);
-        UI_H(set.sys4);
+        UI_H(set.sys4), UI_H(SPK_ON());          /* (2.1.4: AUTO's speaker or headphones, as the jack says) */
+        UI_H(tch_last_k), UI_H(tch_last_v), UI_H(tch_last_k < TT_NA ? tch_pv[tch_last_k] : 0u);   /* (TOUCH's last key) */
+#ifdef FM1_TOUCH_HAL
+        UI_H(fm1_tch.on), UI_H(fm1_tch.timeouts), UI_H(tt_k[tch_last_k < TT_NA ? tch_last_k : 0u].v), UI_H(tt_k[tch_last_k < TT_NA ? tch_last_k : 0u].d);
+#endif
         for (k = 0; k < NLINK * 5u; k++) UI_H(set.lk[k / 5u][k % 5u]);
     }
     if (PAGES[page].btn == BTN_SEQ) {           /* the pattern, its settings, the cursor, the step playing */
@@ -2636,9 +2733,10 @@ static void ui_update(int32_t oct)
     }
 }
 
-/* ---- (2.2) GOVVA (North Sami: a picture, satni.uit.no), SCREEN OFF's last: after a minute untouched the whole screen
- * is the picture, moving (pictures.c's pic_anim_rows): JAHKI's season's while JAHKI is on (DEPTH up or SKY on; then
- * GUOVSSAHAS too shows the seasons, never the aurora), else the selected track's sound's; 2 x 2 pixels a cell, in the middle, black round it. Nothing over it, no text. A frame every UI_GOVVA_MS
+/* ---- (2.2) GOVVA (North Sami: a picture, satni.uit.no), SCREEN OFF's last (2.1.6: and GUOVSSAHAS, always the
+ * northern lights' card, tundra_aurora; ui_aurora no longer shown): after a minute untouched the whole screen
+ * is the picture, moving (pictures.c's pic_anim_rows): JAHKI's season's while JAHKI is on (DEPTH up or SKY on;
+ * GUOVSSAHAS stays the aurora: 2.1.6), else the selected track's sound's; 2 x 2 pixels a cell, in the middle, black round it. Nothing over it, no text. A frame every UI_GOVVA_MS
  * (~11 a second: far lighter than GUOVSSAHAS, the music first); the first touch only wakes the screen (arctic.c). */
 #define UI_GOVVA_MS 90u
 #define GV_X ((240 - 2 * (int32_t)PIC_W) / 2)
@@ -2681,10 +2779,11 @@ static void gv_draw(void)
 static void ui_govva(uint32_t now)
 {
     static uint32_t t_last, shown;
-    uint32_t id = yr_on() ? yr_pic() : pic_of_track(sel);
+    uint32_t id = set.scr == SCR_AUR ? pic_named("tundra_aurora") : yr_on() ? yr_pic() : pic_of_track(sel);
     if (now - t_last < UI_GOVVA_MS) return;
-    if (now - t_last > 1000u) ui_region(0, 0, 240, 240, UI_K, 0), shown = 0, gv_f = 16;   /* (its first frame: the screen
-                                                 * black once, the picture at once) */
+    if (now - t_last > 1000u || ui_force)       /* (its first frame, or everything asked for again (2.1.5: a screen
+                                                 * mirror's): the screen black once, the picture at once) */
+        ui_region(0, 0, 240, 240, UI_K, 0), shown = 0, gv_f = 16, ui_force = 0;
     else if (shown != id + 1u) gv_old = shown - 1u, gv_t0 = now, gv_f = 0;   /* (2.2: another: it melts in) */
     if (gv_f < 16u) gv_f = (now - gv_t0) * 16u / GV_MELT_MS, gv_f = gv_f > 16u ? 16u : gv_f;
     t_last = now, shown = id + 1u;

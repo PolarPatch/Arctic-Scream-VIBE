@@ -126,12 +126,12 @@ static uint32_t ed_commit(uint32_t o)
             s.ver = SET_VER, s.sys4 = 0;
         }
         if (s.ver != SET_VER || s.oct < -2 || s.oct > 2 || s.tune < -50 || s.tune > 50 || s.col > 4u ||
-            s.mch > MCH_MAX || s.scr >= NSCR || s.out > 1u || s.nlk > NLINK || s.clk >= CK_N || s.latch > 1u || s.usb > USB_KMAX || s.mod > 1u || s.sys4 > 3u)
+            s.mch > MCH_MAX || s.scr >= NSCR || s.out > 1u || s.nlk > NLINK || s.clk >= CK_N || s.latch > 1u || s.usb > USB_KMAX || s.mod > 1u || !SYS4_OK(s.sys4))
             return ER_BAD;
         for (i = 0; i < s.nlk; i++)
             if (s.lk[i][1] >= NPAGE || s.lk[i][2] > 3u || s.lk[i][3] > 3u) return ER_BAD;
         sy_col = s.col, sy_mch = s.mch, sy_tune = s.tune, sy_scr = s.scr, sy_out = s.out, sy_clk = s.clk, sy_latch = s.latch;
-        sy_usb = s.usb, sy_mod = s.mod, sy_snd = s.sys4 & 1u, sy_help = !(s.sys4 & 2u);
+        sy_usb = s.usb, sy_mod = s.mod, sy_snd = SYS4_SND(s.sys4), sy_help = !(s.sys4 & 2u), sy_touch = s.sys4 >> 3;
         sys_sync();                             /* (a new MIDI CHANNEL: what is on out there let go first) */
         set.oct = s.oct, set.nlk = s.nlk, set.ver = SET_VER;
         memcpy(set.lk, s.lk, sizeof set.lk);
@@ -148,6 +148,7 @@ static uint32_t ed_commit(uint32_t o)
         memcpy(slots[o - EO_SLOT], ED_RX, SLOT_ALL);
         slot_bg[o - EO_SLOT][0] = 0;            /* (2.0: its Biegga not in the editor's slot: the tracks' kept) */
         memset(slot_e2[o - EO_SLOT], 0, E2_SLOT);   /* (2.2: nor its ENV 2: off) */
+        slot_dp[o - EO_SLOT][0] = 0;            /* (2.1.6: nor its DEEP: the tracks' kept) */
         slot_dirty |= 1u << (o - EO_SLOT);
         if (slots_save()) return ER_FLASH;
         put_s(m, "EDITOR: SLOT A SAVED"), m[13] = (char)('A' + o - EO_SLOT);

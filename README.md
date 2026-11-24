@@ -24,6 +24,12 @@ same version (2.0), with what the FM-1 cannot do:
 - **The DAW**: the input's and the VOICE's settings are automatable parameters; the projects, settings and samples are
   saved in the DAW's project.
 
+New in 2.1.6 (as Arctic Scream 2.1.6 on the FM-1): **Luovos boazu** (North Sami: a free reindeer), an eleventh sound
+source, a deep calm drone from below (DEPTH, COUPLE, DRIFT, TONE), with SARVVIS, GODDI and LUOVOS; the new MANDALORIA;
+**demos that play themselves**: pick one of them, POLAR HOWL or BIEGGA and press PLAY on an empty track; MASTER glides.
+Also from 2.1.4 on the FM-1: **ONE-SHOTS** (hold GLO and press a free key), **TIDE** and **GUARD**, and MIDI's
+velocity on the keys.
+
 New in 2.1.3: **the stage.** In the Web Player Arctic Scream opens on the polar night, drawn by what plays: four
 northern lights, one a track in its colour, hanging as high and bright as it sounds; the selected sound's picture,
 torn when it screams; JAHKI's season in the moon; the tracks on the frozen lake; the pads as blocks of ice to click;
