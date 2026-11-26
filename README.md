@@ -24,6 +24,9 @@ same version (2.0), with what the FM-1 cannot do:
 - **The DAW**: the input's and the VOICE's settings are automatable parameters; the projects, settings and samples are
   saved in the DAW's project.
 
+New in 2.1.7 (as Arctic Scream 2.1.7 on the FM-1): **SUSTAIN**, a sustain pedal's CC 64 from a MIDI keyboard holds the
+notes you let go until it comes up; a note played again meanwhile starts afresh.
+
 New in 2.1.6 (as Arctic Scream 2.1.6 on the FM-1): **Luovos boazu** (North Sami: a free reindeer), an eleventh sound
 source, a deep calm drone from below (DEPTH, COUPLE, DRIFT, TONE), with SARVVIS, GODDI and LUOVOS; the new MANDALORIA;
 **demos that play themselves**: pick one of them, POLAR HOWL or BIEGGA and press PLAY on an empty track; MASTER glides.
